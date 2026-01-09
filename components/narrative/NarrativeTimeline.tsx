@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { useNarrativeTree } from './hooks/useNarrativeTree'
 import { useNarrativeActions } from './hooks/useNarrativeActions'
 import { NarrativeNodeDialog, QuickBranchDialog } from './NarrativeNodeDialog'
-import { NarrativeNode as NarrativeNodeType, NarrativeEdge, StoryNote, Encounter, Monster } from '@/types/database'
+import { NarrativeNode as NarrativeNodeType, NarrativeEdge, NarrativeCheck, NarrativeCheckInsert, StoryNote, Encounter, Monster } from '@/types/database'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { GameIcon } from '@/components/icons/GameIcon'
@@ -27,6 +27,7 @@ interface NarrativeTimelineProps {
 
 interface TimelineNode extends NarrativeNodeType {
   sequence: number
+  hierarchicalNumber: string // e.g. "1", "1.1", "1.2", "2"
   branches: TimelineNode[]
   edgeLabel?: string
 }
@@ -37,6 +38,7 @@ export function NarrativeTimeline({ actId, campaignId, actNumber }: NarrativeTim
     nodes,
     edges,
     links,
+    checks,
     rootNode,
     currentNode,
     visitedPath,
@@ -73,13 +75,13 @@ export function NarrativeTimeline({ actId, campaignId, actNumber }: NarrativeTim
       .from('dnd_story_notes')
       .select('*')
       .eq('campaign_id', campaignId)
-      .eq('act', actNumber)
+      .contains('acts', [actNumber])
 
     const { data: encountersData } = await supabase
       .from('dnd_encounters')
       .select('*')
       .eq('campaign_id', campaignId)
-      .eq('act', actNumber)
+      .contains('acts', [actNumber])
 
     const { data: monstersData } = await supabase
       .from('dnd_monsters')
@@ -145,10 +147,11 @@ export function NarrativeTimeline({ actId, campaignId, actNumber }: NarrativeTim
           nextId = edge.to_node_id
           nextEdgeLabel = edge.label || undefined
         } else {
-          // Secondary paths are branches
+          // Secondary paths are branches with hierarchical numbering
           branches.push({
             ...childNode,
             sequence: 0, // Will be set relative
+            hierarchicalNumber: `${sequence}.${idx}`, // e.g. "1.1", "1.2"
             branches: [],
             edgeLabel: edge.label || undefined
           })
@@ -158,6 +161,7 @@ export function NarrativeTimeline({ actId, campaignId, actNumber }: NarrativeTim
       mainPath.push({
         ...node,
         sequence,
+        hierarchicalNumber: String(sequence), // Main path: "1", "2", "3"
         branches,
         edgeLabel: sequence > 1 ? mainPath[mainPath.length - 1]?.edgeLabel : undefined
       })
@@ -196,6 +200,11 @@ export function NarrativeTimeline({ actId, campaignId, actNumber }: NarrativeTim
     }
   }, [links, linkedNotes, linkedEncounters, linkedMonsters])
 
+  // Get checks for a specific node
+  const getChecksForNode = useCallback((nodeId: string): NarrativeCheck[] => {
+    return checks.filter(c => c.node_id === nodeId)
+  }, [checks])
+
   // Scroll to current node on load
   useEffect(() => {
     if (currentNode && scrollRef.current) {
@@ -232,6 +241,20 @@ export function NarrativeTimeline({ actId, campaignId, actNumber }: NarrativeTim
     } else {
       await actions.addLink(editingNode.id, type, id)
     }
+  }
+
+  // Check handlers
+  async function handleCheckCreate(check: Omit<NarrativeCheckInsert, 'node_id'>) {
+    if (!editingNode) return
+    await actions.createCheck(editingNode.id, check)
+  }
+
+  async function handleCheckDelete(checkId: string) {
+    await actions.deleteCheck(checkId)
+  }
+
+  async function handleCheckUpdate(checkId: string, updates: Partial<NarrativeCheck>) {
+    await actions.updateCheck(checkId, updates)
   }
 
   async function handleQuickBranch(title: string, edgeLabel?: string) {
@@ -400,14 +423,14 @@ export function NarrativeTimeline({ actId, campaignId, actNumber }: NarrativeTim
                           node.is_root && "ring-2 ring-[var(--coral)]/50"
                         )}
                       >
-                        {/* Sequence number */}
+                        {/* Hierarchical number */}
                         <span className={cn(
                           "font-bold text-sm",
                           isCurrent && "text-[var(--teal)]",
                           isVisited && !isCurrent && "text-green-700",
                           !isVisited && !isCurrent && "text-[var(--ink-faded)]"
                         )}>
-                          {node.sequence}
+                          {node.hierarchicalNumber}
                         </span>
 
                         {/* Link indicator */}
@@ -446,7 +469,9 @@ export function NarrativeTimeline({ actId, campaignId, actNumber }: NarrativeTim
                               onClick={() => setSelectedNode(selectedNode?.id === branch.id ? null : branch)}
                               className="flex items-center gap-2 px-2 py-1 bg-[var(--cream-dark)] rounded border border-[var(--ink-faded)]/10 hover:bg-[var(--ink-faded)]/5 transition-colors"
                             >
-                              <span className="w-2 h-2 rounded-full bg-[var(--ink-faded)]/30" />
+                              <span className="min-w-[24px] text-xs font-mono text-[var(--ink-faded)]">
+                                {branch.hierarchicalNumber}
+                              </span>
                               <span className="text-xs text-[var(--ink-light)] truncate max-w-[80px]">
                                 {branch.edgeLabel || branch.title}
                               </span>
@@ -610,8 +635,12 @@ export function NarrativeTimeline({ actId, campaignId, actNumber }: NarrativeTim
         linkedNoteIds={editingNode ? getLinksForNode(editingNode.id).noteIds : []}
         linkedEncounterIds={editingNode ? getLinksForNode(editingNode.id).encounterIds : []}
         linkedMonsterIds={editingNode ? getLinksForNode(editingNode.id).monsterIds : []}
+        checks={editingNode ? getChecksForNode(editingNode.id) : []}
         onSave={handleSaveNode}
         onLinkToggle={handleLinkToggle}
+        onCheckCreate={handleCheckCreate}
+        onCheckDelete={handleCheckDelete}
+        onCheckUpdate={handleCheckUpdate}
       />
 
       {/* Quick branch dialog */}

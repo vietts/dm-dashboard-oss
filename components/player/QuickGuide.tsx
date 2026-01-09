@@ -13,9 +13,89 @@ interface GuideSection {
 
 interface QuickGuideProps {
   defaultCollapsed?: boolean
+  characterClass?: string
 }
 
-export default function QuickGuide({ defaultCollapsed = false }: QuickGuideProps) {
+interface ClassMagicInfo {
+  name: string
+  characteristic: string
+  type: string
+  swapFrequency: string
+  special: string | null
+  focus: string
+  startLevel?: number
+}
+
+const CLASS_MAGIC_INFO: Record<string, ClassMagicInfo> = {
+  wizard: {
+    name: 'Mago',
+    characteristic: 'Intelligenza',
+    type: 'Prepara dal libro',
+    swapFrequency: 'Riposo lungo: qualsiasi numero',
+    special: 'Libro degli incantesimi - copia pergamene (2h + 50mo/livello)',
+    focus: 'Bacchetta, bastone, globo arcano',
+  },
+  cleric: {
+    name: 'Chierico',
+    characteristic: 'Saggezza',
+    type: 'Prepara dalla lista completa',
+    swapFrequency: 'Riposo lungo: qualsiasi numero',
+    special: 'Dominio fornisce incantesimi bonus sempre preparati',
+    focus: 'Simbolo sacro',
+  },
+  druid: {
+    name: 'Druido',
+    characteristic: 'Saggezza',
+    type: 'Prepara dalla lista completa',
+    swapFrequency: 'Riposo lungo: qualsiasi numero',
+    special: 'Circolo può fornire incantesimi bonus',
+    focus: 'Focus druidico',
+  },
+  paladin: {
+    name: 'Paladino',
+    characteristic: 'Carisma',
+    type: 'Prepara (lista limitata)',
+    swapFrequency: 'Riposo lungo: uno solo',
+    special: 'Giuramento fornisce bonus. Punizione Divina 1x senza slot',
+    focus: 'Simbolo sacro',
+    startLevel: 2,
+  },
+  ranger: {
+    name: 'Ranger',
+    characteristic: 'Saggezza',
+    type: 'Prepara (lista limitata)',
+    swapFrequency: 'Riposo lungo: uno solo',
+    special: null,
+    focus: 'Nessuno (componenti materiali)',
+    startLevel: 2,
+  },
+  bard: {
+    name: 'Bardo',
+    characteristic: 'Carisma',
+    type: 'Conosce incantesimi fissi',
+    swapFrequency: 'Solo salendo di livello: uno',
+    special: 'Segreti Magici - impara da qualsiasi lista',
+    focus: 'Strumento musicale',
+  },
+  sorcerer: {
+    name: 'Stregone',
+    characteristic: 'Carisma',
+    type: 'Conosce incantesimi fissi',
+    swapFrequency: 'Solo salendo di livello: uno',
+    special: 'Punti Stregoneria + Metamagia',
+    focus: 'Focus arcano',
+  },
+  warlock: {
+    name: 'Warlock',
+    characteristic: 'Carisma',
+    type: 'Conosce incantesimi fissi',
+    swapFrequency: 'Solo salendo di livello: uno',
+    special: 'Magia del Patto: pochi slot (max 4) al livello massimo, recupero con RIPOSO BREVE',
+    focus: 'Focus arcano',
+  },
+}
+
+export default function QuickGuide({ defaultCollapsed = false, characterClass }: QuickGuideProps) {
   const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed)
   const [expandedSection, setExpandedSection] = useState<string | null>(null)
 
@@ -97,6 +177,92 @@ export default function QuickGuide({ defaultCollapsed = false }: QuickGuideProps
           </div>
         </div>
       ),
+    },
+    {
+      id: 'magic',
+      title: 'Guida alla Magia',
+      icon: 'book',
+      content: (() => {
+        const classInfo = characterClass ? CLASS_MAGIC_INFO[characterClass.toLowerCase()] : null
+
+        return (
+          <div className="space-y-3">
+            {/* Slot Incantesimo */}
+            <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+              <h4 className="font-bold text-purple-800 mb-2 text-sm">Slot Incantesimo</h4>
+              <p className="text-xs text-[var(--ink)]">
+                Gli slot sono &quot;batterie magiche&quot;. Per lanciare un incantesimo, spendi uno slot di livello <strong>uguale o superiore</strong>.
+              </p>
+              <p className="text-xs text-[var(--ink)] mt-1">
+                <strong>Upcasting:</strong> Alcuni incantesimi diventano più potenti con slot più alti.
+              </p>
+              <p className="text-xs text-[var(--ink)] mt-1">
+                <strong>Recupero:</strong> Riposo lungo = tutti gli slot.
+              </p>
+            </div>
+
+            {/* Trucchetti */}
+            <div className="bg-teal-50 rounded-lg p-3 border border-teal-200">
+              <h4 className="font-bold text-teal-800 mb-2 text-sm">∞ Trucchetti (Livello 0)</h4>
+              <p className="text-xs text-[var(--ink)]">
+                Lanciabili <strong>all&apos;infinito</strong>, senza consumare slot. Diventano più potenti automaticamente a certi livelli.
+              </p>
+            </div>
+
+            {/* Concentrazione */}
+            <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+              <h4 className="font-bold text-amber-800 mb-2 text-sm">Concentrazione</h4>
+              <ul className="text-xs text-[var(--ink)] list-disc list-inside space-y-1">
+                <li>Puoi mantenere <strong>un solo</strong> incantesimo a concentrazione</li>
+                <li><strong>Se subisci danni:</strong> TS Costituzione (CD = 10 o metà danni, il più alto)</li>
+                <li><strong>Termina se:</strong> incapacitato, muori, lanci altra concentrazione</li>
+              </ul>
+            </div>
+
+            {/* Componenti */}
+            <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+              <h4 className="font-bold text-gray-800 mb-2 text-sm">Componenti</h4>
+              <div className="grid grid-cols-3 gap-2 text-xs">
+                <div><strong>V</strong> = Verbale</div>
+                <div><strong>S</strong> = Somatica</div>
+                <div><strong>M</strong> = Materiale</div>
+              </div>
+            </div>
+
+            {/* Rituali */}
+            <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+              <h4 className="font-bold text-blue-800 mb-2 text-sm">Rituali (R)</h4>
+              <p className="text-xs text-[var(--ink)]">
+                Lanciabili <strong>senza slot</strong> aggiungendo 10 minuti al tempo di lancio.
+              </p>
+            </div>
+
+            {/* Regola Singolo Slot */}
+            <div className="bg-red-50 rounded-lg p-3 border border-red-200">
+              <h4 className="font-bold text-red-800 mb-2 text-sm">⚠️ Regola Singolo Slot per Turno</h4>
+              <p className="text-xs text-[var(--ink)]">
+                Se lanci un incantesimo bonus action che usa slot, l&apos;unico altro incantesimo nel turno può essere solo un <strong>trucchetto</strong> (1 azione).
+              </p>
+            </div>
+
+            {/* Classe Specifica */}
+            {classInfo && (
+              <div className="bg-indigo-50 rounded-lg p-3 border border-indigo-300">
+                <h4 className="font-bold text-indigo-800 mb-2 text-sm">
+                  La Tua Classe: {classInfo.name}
+                </h4>
+                <div className="text-xs text-[var(--ink)] space-y-1">
+                  <p><strong>Caratteristica:</strong> {classInfo.characteristic}</p>
+                  <p><strong>Tipo:</strong> {classInfo.type}</p>
+                  <p><strong>Cambio lista:</strong> {classInfo.swapFrequency}</p>
+                  {classInfo.special && <p><strong>Speciale:</strong> {classInfo.special}</p>}
+                  <p><strong>Focus:</strong> {classInfo.focus}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })(),
     },
     {
       id: 'conditions',

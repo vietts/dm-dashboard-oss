@@ -29,6 +29,29 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check for DM Master Code
+    if (accessCode.toUpperCase() === 'DM-MASTER') {
+      const playerData = {
+        isDM: true,
+        playerName: 'Dungeon Master'
+      }
+
+      const cookieStore = await cookies()
+      cookieStore.set('player-auth', JSON.stringify(playerData), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+        path: '/'
+      })
+
+      return NextResponse.json({
+        success: true,
+        isDM: true,
+        playerName: 'Dungeon Master'
+      })
+    }
+
     // Find player by access code using admin client (bypasses RLS)
     const { data: player, error } = await supabaseAdminUntyped
       .from('dnd_players')
@@ -117,6 +140,14 @@ export async function GET() {
     }
 
     const playerData = JSON.parse(playerCookie.value)
+
+    // If DM session, skip player verification
+    if (playerData.isDM) {
+      return NextResponse.json({
+        authenticated: true,
+        ...playerData
+      })
+    }
 
     // Verify player still exists
     const { data: player, error } = await supabaseAdminUntyped

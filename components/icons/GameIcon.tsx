@@ -99,4 +99,9 @@ export const UI_ICONS: Record<string, string> = {
   path: 'path',            // Narrative path/branching
   compass: 'compass',      // Navigation/canvas controls
   flag: 'flag',            // Root node/starting point
+  bag: 'bag',              // Inventory misc items
+  plus: 'plus',            // Add/create actions
+  sword: 'sword',          // Weapons/combat features
+  swords: 'swords',        // Combat encounters
+  'crossed-swords': 'crossed-swords', // Combat encounters (alternative)
 }

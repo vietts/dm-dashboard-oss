@@ -38,7 +38,7 @@ export function ConfirmationStep({ character, state, updateState }: Confirmation
   // Calculate HP
   const hpRoll = state.useAverage ? getHitDieAverage(hitDie) : (state.hpRollResult || 0)
   const hpIncrease = hpRoll + conModifier
-  const newMaxHP = character.max_hp + hpIncrease
+  const newMaxHP = (character.max_hp ?? 10) + hpIncrease
 
   // Get automatic features
   const automaticFeatures = state.newFeatures.filter(f => !f.requiresChoice)
@@ -186,7 +186,7 @@ export function ConfirmationStep({ character, state, updateState }: Confirmation
             <div>
               <p className="text-sm text-muted-foreground">HP Attuali</p>
               <p className="text-2xl font-bold">
-                {state.fullHeal ? newMaxHP : character.current_hp + hpIncrease}
+                {state.fullHeal ? newMaxHP : (character.current_hp ?? 10) + hpIncrease}
               </p>
             </div>
           </div>

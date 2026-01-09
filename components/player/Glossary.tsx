@@ -7,7 +7,7 @@ import { ChevronDown } from 'lucide-react'
 interface GlossaryTerm {
   term: string
   definition: string
-  category: 'combat' | 'magic' | 'general'
+  category: 'combat' | 'magic' | 'general' | 'formulas'
 }
 
 interface GlossaryProps {
@@ -35,12 +35,23 @@ const terms: GlossaryTerm[] = [
   { term: 'Competenza', definition: 'Bonus che aggiungi a tiri in cui sei addestrato. Aumenta con il livello.', category: 'general' },
   { term: 'Ispirazione', definition: 'Risorsa speciale data dal DM. Puoi usarla per ritirare un dado.', category: 'general' },
   { term: 'CD (Classe Difficoltà)', definition: 'Il numero da raggiungere o superare per avere successo in un\'azione.', category: 'general' },
+
+  // Formulas & Calculations
+  { term: 'Modificatore di Abilità', definition: 'Formula: (Punteggio - 10) ÷ 2. Esempio: Forza 16 → (16-10)÷2 = +3. Questo modificatore si aggiunge ai tiri che usano quella caratteristica.', category: 'formulas' },
+  { term: 'Bonus di Competenza', definition: 'Lv. 1-4: +2 | Lv. 5-8: +3 | Lv. 9-12: +4 | Lv. 13-16: +5 | Lv. 17-20: +6. Si aggiunge a abilità, armi e TS in cui sei competente.', category: 'formulas' },
+  { term: 'Tiro di Attacco con Arma', definition: 'Formula: d20 + modificatore FOR/DES + competenza (se competente). Le armi Accurate ti permettono di usare DES invece di FOR.', category: 'formulas' },
+  { term: 'Tiro di Attacco con Incantesimo', definition: 'Formula: d20 + modificatore caratteristica incantatore + competenza. La caratteristica dipende dalla classe (INT/SAG/CAR).', category: 'formulas' },
+  { term: 'CD Incantesimi', definition: 'Formula: 8 + modificatore incantatore + competenza. I nemici devono superare questa CD con un tiro salvezza per resistere.', category: 'formulas' },
+  { term: 'Calcolo Abilità', definition: 'Formula: d20 + modificatore caratteristica + competenza (se competente) + expertise (se hai expertise). Passa il mouse sulle abilità per vedere i dettagli.', category: 'formulas' },
+  { term: 'Expertise', definition: 'Privilegi di Ladro/Bardo. Aggiungi il bonus di competenza DUE VOLTE invece di una. Esempio: Lv.5 con expertise = +6 invece di +3.', category: 'formulas' },
+  { term: 'Caratteristica Incantatore', definition: 'Ogni classe usa una caratteristica specifica: Mago (INT), Chierico/Druido (SAG), Bardo/Stregone/Warlock/Paladino (CAR).', category: 'formulas' },
 ]
 
 const categoryLabels: Record<string, { label: string; color: string }> = {
   combat: { label: 'Combattimento', color: 'text-[var(--coral)]' },
   magic: { label: 'Magia', color: 'text-purple-600' },
   general: { label: 'Generale', color: 'text-blue-600' },
+  formulas: { label: 'Calcoli e Formule', color: 'text-[var(--teal)]' },
 }
 
 export default function Glossary({ defaultCollapsed = false }: GlossaryProps) {
@@ -95,7 +106,7 @@ export default function Glossary({ defaultCollapsed = false }: GlossaryProps) {
               className="w-full px-3 py-2 bg-[var(--paper)] border border-[var(--border-decorative)] rounded text-[var(--ink)] placeholder-[var(--ink-faded)] text-sm focus:outline-none focus:ring-1 focus:ring-[var(--teal)]"
             />
             <div className="flex gap-1 flex-wrap">
-              {['all', 'combat', 'magic', 'general'].map((cat) => (
+              {['all', 'combat', 'magic', 'formulas', 'general'].map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setFilter(cat)}

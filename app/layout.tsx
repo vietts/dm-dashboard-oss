@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Fraunces, Source_Serif_4, Instrument_Serif, Geist_Mono } from "next/font/google";
+import { Toaster } from "@/components/ui/sonner";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -48,6 +49,7 @@ export default function RootLayout({
         className={`${fraunces.variable} ${sourceSerif.variable} ${instrumentSerif.variable} ${geistMono.variable} antialiased font-[family-name:var(--font-source-serif)]`}
       >
         {children}
+        <Toaster position="top-center" theme="light" />
       </body>
     </html>
   );

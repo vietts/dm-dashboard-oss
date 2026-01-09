@@ -15,21 +15,21 @@ function getModifier(score: number): string {
 
 export default function CharacterSheet({ character }: CharacterSheetProps) {
   const abilities = [
-    { name: 'FOR', key: 'str', score: character.str },
-    { name: 'DES', key: 'dex', score: character.dex },
-    { name: 'COS', key: 'con', score: character.con },
-    { name: 'INT', key: 'int', score: character.int },
-    { name: 'SAG', key: 'wis', score: character.wis },
-    { name: 'CAR', key: 'cha', score: character.cha },
+    { name: 'FOR', key: 'str', score: character.str ?? 10 },
+    { name: 'DES', key: 'dex', score: character.dex ?? 10 },
+    { name: 'COS', key: 'con', score: character.con ?? 10 },
+    { name: 'INT', key: 'int', score: character.int ?? 10 },
+    { name: 'SAG', key: 'wis', score: character.wis ?? 10 },
+    { name: 'CAR', key: 'cha', score: character.cha ?? 10 },
   ]
 
   // Get class icon name
   const classIconName = CLASS_ICONS[character.class?.toLowerCase() || ''] || 'masks'
 
   // HP color based on percentage
-  const hpColor = character.current_hp <= character.max_hp * 0.25
+  const hpColor = (character.current_hp ?? 10) <= (character.max_hp ?? 10) * 0.25
     ? 'text-[var(--coral)]'
-    : character.current_hp <= character.max_hp * 0.5
+    : (character.current_hp ?? 10) <= (character.max_hp ?? 10) * 0.5
       ? 'text-[var(--health-mid)]'
       : 'text-[var(--teal)]'
 
@@ -60,7 +60,7 @@ export default function CharacterSheet({ character }: CharacterSheetProps) {
               <GameIcon name="heart" category="ui" size={14} className={hpColor} />
               <span className={`font-bold ${hpColor}`}>{character.current_hp}</span>
               <span className="text-[var(--ink-faded)]">/{character.max_hp}</span>
-              {character.temp_hp > 0 && (
+              {(character.temp_hp ?? 0) > 0 && (
                 <span className="text-blue-600 text-xs">(+{character.temp_hp})</span>
               )}
             </span>
@@ -89,7 +89,7 @@ export default function CharacterSheet({ character }: CharacterSheetProps) {
           Velocità: <span className="text-[var(--ink)] font-medium">{character.speed} ft</span>
         </span>
         <span>
-          Iniziativa: <span className="text-[var(--ink)] font-medium">{character.initiative_bonus >= 0 ? '+' : ''}{character.initiative_bonus}</span>
+          Iniziativa: <span className="text-[var(--ink)] font-medium">{(character.initiative_bonus ?? 0) >= 0 ? '+' : ''}{character.initiative_bonus ?? 0}</span>
         </span>
         <span>
           PP: <span className="text-[var(--ink)] font-medium">{character.passive_perception}</span>

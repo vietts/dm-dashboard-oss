@@ -182,9 +182,9 @@ export default function LevelUpDialog({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="parchment-card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+      <div className="parchment-card p-6 max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
+        {/* Header - fixed */}
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-[var(--teal)]/20 flex items-center justify-center">
               <ChevronUp className="w-6 h-6 text-[var(--teal)]" />
@@ -202,6 +202,8 @@ export default function LevelUpDialog({
           </button>
         </div>
 
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto">
         {/* Level Display */}
         <div className="text-center mb-6 py-4 bg-[var(--cream-dark)] rounded-lg">
           <div className="text-[var(--ink-light)] text-sm mb-1">Livello</div>
@@ -357,8 +359,9 @@ export default function LevelUpDialog({
             {error}
           </div>
         )}
+        </div>
 
-        {/* Actions */}
+        {/* Actions - fixed at bottom */}
         <div className="flex gap-3">
           <button
             onClick={() => onOpenChange(false)}

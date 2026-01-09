@@ -19,9 +19,11 @@ export type NoteTypeValue = NoteType['value']
 interface NotesContextValue {
   // Data
   notes: StoryNote[]
+  allCampaignNotes: StoryNote[]
   monsters: Monster[]
   noteTypes: readonly NoteType[]
   campaignId: string
+  actNumber?: number
 
   // Selection
   selectedNoteId: string | null
@@ -35,13 +37,19 @@ interface NotesContextValue {
   activeTypeFilter: NoteTypeValue | 'all'
   setActiveTypeFilter: (type: NoteTypeValue | 'all') => void
   filteredNotes: StoryNote[]
+  filteredAllNotes: StoryNote[]
   notesByType: Record<string, StoryNote[]>
 
   // CRUD
   createNote: (data: Partial<StoryNote>) => Promise<void>
   updateNote: (id: string, updates: Partial<StoryNote>) => Promise<void>
   deleteNote: (id: string) => Promise<void>
+  linkNote?: (noteId: string) => Promise<void>
+  unlinkNote?: (noteId: string) => Promise<void>
   onMonsterCreated?: (monster: Monster) => void
+
+  // Feature flags
+  hasLinkingSupport: boolean
 
   // UI State
   isEditing: boolean
@@ -56,10 +64,14 @@ interface NotesProviderProps {
   children: ReactNode
   campaignId: string
   notes: StoryNote[]
+  allCampaignNotes?: StoryNote[]
+  actNumber?: number
   monsters: Monster[]
   onCreateNote: (data: Partial<StoryNote>) => Promise<void>
   onUpdateNote: (id: string, updates: Partial<StoryNote>) => Promise<void>
   onDeleteNote: (id: string) => Promise<void>
+  onLinkNote?: (noteId: string) => Promise<void>
+  onUnlinkNote?: (noteId: string) => Promise<void>
   onMonsterCreated?: (monster: Monster) => void
 }
 
@@ -67,10 +79,14 @@ export function NotesProvider({
   children,
   campaignId,
   notes,
+  allCampaignNotes = [],
+  actNumber,
   monsters,
   onCreateNote,
   onUpdateNote,
   onDeleteNote,
+  onLinkNote,
+  onUnlinkNote,
   onMonsterCreated,
 }: NotesProviderProps) {
   // Selection state
@@ -128,6 +144,32 @@ export function NotesProvider({
     return result
   }, [notes, activeTypeFilter, searchQuery])
 
+  // Computed: filtered all campaign notes (excludes notes already in this act)
+  const filteredAllNotes = useMemo(() => {
+    // Get notes NOT in this act
+    let result = allCampaignNotes.filter(n => {
+      const noteActs = n.acts || []
+      return !actNumber || !noteActs.includes(actNumber)
+    })
+
+    // Filter by type
+    if (activeTypeFilter !== 'all') {
+      result = result.filter(n => n.note_type === activeTypeFilter)
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase()
+      result = result.filter(n =>
+        n.title.toLowerCase().includes(query) ||
+        (n.content && n.content.toLowerCase().includes(query)) ||
+        (n.dm_notes && n.dm_notes.toLowerCase().includes(query))
+      )
+    }
+
+    return result
+  }, [allCampaignNotes, actNumber, activeTypeFilter, searchQuery])
+
   // Select note handler
   const selectNote = useCallback((id: string | null) => {
     setSelectedNoteId(id)
@@ -156,11 +198,35 @@ export function NotesProvider({
     }
   }, [onDeleteNote, selectedNoteId])
 
+  // Link note to this act
+  const linkNote = useCallback(async (noteId: string) => {
+    if (onLinkNote) {
+      await onLinkNote(noteId)
+    }
+  }, [onLinkNote])
+
+  // Unlink note from this act
+  const unlinkNote = useCallback(async (noteId: string) => {
+    if (onUnlinkNote) {
+      await onUnlinkNote(noteId)
+      // Clear selection if unlinked note was selected
+      if (selectedNoteId === noteId) {
+        setSelectedNoteId(null)
+        setIsMobilePanelOpen(false)
+      }
+    }
+  }, [onUnlinkNote, selectedNoteId])
+
+  // Check if linking is supported (act page vs campaign page)
+  const hasLinkingSupport = !!(onLinkNote && onUnlinkNote && actNumber !== undefined)
+
   const value: NotesContextValue = {
     notes,
+    allCampaignNotes,
     monsters,
     noteTypes: NOTE_TYPES,
     campaignId,
+    actNumber,
     selectedNoteId,
     selectedNote,
     selectedNoteMonster,
@@ -170,11 +236,15 @@ export function NotesProvider({
     activeTypeFilter,
     setActiveTypeFilter,
     filteredNotes,
+    filteredAllNotes,
     notesByType,
     createNote,
     updateNote,
     deleteNote,
+    linkNote,
+    unlinkNote,
     onMonsterCreated,
+    hasLinkingSupport,
     isEditing,
     setIsEditing,
     isMobilePanelOpen,

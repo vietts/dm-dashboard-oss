@@ -53,6 +53,7 @@ export default function ActDetailPage() {
   const [act, setAct] = useState<Act | null>(null)
   const [allActs, setAllActs] = useState<Act[]>([])
   const [notes, setNotes] = useState<StoryNote[]>([])
+  const [allCampaignNotes, setAllCampaignNotes] = useState<StoryNote[]>([])
   const [encounters, setEncounters] = useState<Encounter[]>([])
   const [monsters, setMonsters] = useState<Monster[]>([])
   const [encounterMonsters, setEncounterMonsters] = useState<Record<string, string[]>>({})
@@ -110,7 +111,7 @@ export default function ActDetailPage() {
       setAct(actData)
 
       // Now fetch everything else in parallel
-      const [campaignResult, actsResult, notesResult, encountersResult, monstersResult, sessionsResult] = await Promise.all([
+      const [campaignResult, actsResult, notesInActResult, allNotesResult, encountersResult, monstersResult, sessionsResult] = await Promise.all([
         supabase
           .from('dnd_campaigns')
           .select('*')
@@ -121,17 +122,24 @@ export default function ActDetailPage() {
           .select('*')
           .eq('campaign_id', campaignId)
           .order('act_number', { ascending: true }),
+        // Notes linked to this act
         supabase
           .from('dnd_story_notes')
           .select('*')
           .eq('campaign_id', campaignId)
-          .eq('act', actData.act_number)
+          .contains('acts', [actData.act_number])
+          .order('created_at', { ascending: false }),
+        // ALL campaign notes (for linking UI)
+        supabase
+          .from('dnd_story_notes')
+          .select('*')
+          .eq('campaign_id', campaignId)
           .order('created_at', { ascending: false }),
         supabase
           .from('dnd_encounters')
           .select('*')
           .eq('campaign_id', campaignId)
-          .eq('act', actData.act_number)
+          .contains('acts', [actData.act_number])
           .order('created_at', { ascending: false }),
         supabase
           .from('dnd_monsters')
@@ -146,7 +154,8 @@ export default function ActDetailPage() {
 
       if (campaignResult.data) setCampaign(campaignResult.data)
       if (actsResult.data) setAllActs(actsResult.data)
-      if (notesResult.data) setNotes(notesResult.data)
+      if (notesInActResult.data) setNotes(notesInActResult.data)
+      if (allNotesResult.data) setAllCampaignNotes(allNotesResult.data)
       if (sessionsResult.data) setSessions(sessionsResult.data)
       if (encountersResult.data) {
         setEncounters(encountersResult.data)
@@ -254,6 +263,55 @@ export default function ActDetailPage() {
 
     if (!error) {
       setNotes(prev => prev.filter(n => n.id !== id))
+      setAllCampaignNotes(prev => prev.filter(n => n.id !== id))
+    }
+  }
+
+  // Link/Unlink notes to this act
+  async function linkNoteToAct(noteId: string) {
+    const note = allCampaignNotes.find(n => n.id === noteId)
+    if (!note || !act) return
+
+    const currentActs = note.acts || []
+    if (currentActs.includes(act.act_number)) return // Already linked
+
+    const newActs = [...currentActs, act.act_number].sort((a, b) => a - b)
+
+    const { error } = await supabase
+      .from('dnd_story_notes')
+      .update({ acts: newActs, updated_at: new Date().toISOString() })
+      .eq('id', noteId)
+
+    if (!error) {
+      const updatedNote = { ...note, acts: newActs }
+      // Add to notes linked to this act
+      setNotes(prev => [updatedNote, ...prev.filter(n => n.id !== noteId)])
+      // Update in all campaign notes
+      setAllCampaignNotes(prev => prev.map(n =>
+        n.id === noteId ? updatedNote : n
+      ))
+    }
+  }
+
+  async function unlinkNoteFromAct(noteId: string) {
+    const note = notes.find(n => n.id === noteId)
+    if (!note || !act) return
+
+    const newActs = (note.acts || []).filter(a => a !== act.act_number)
+
+    const { error } = await supabase
+      .from('dnd_story_notes')
+      .update({ acts: newActs, updated_at: new Date().toISOString() })
+      .eq('id', noteId)
+
+    if (!error) {
+      const updatedNote = { ...note, acts: newActs }
+      // Remove from notes linked to this act
+      setNotes(prev => prev.filter(n => n.id !== noteId))
+      // Update in all campaign notes
+      setAllCampaignNotes(prev => prev.map(n =>
+        n.id === noteId ? updatedNote : n
+      ))
     }
   }
 
@@ -383,10 +441,14 @@ export default function ActDetailPage() {
         <NotesLayout
           campaignId={campaignId}
           notes={notes}
+          allCampaignNotes={allCampaignNotes}
+          actNumber={act.act_number}
           monsters={monsters}
           onCreateNote={createNote}
           onUpdateNote={updateNote}
           onDeleteNote={deleteNote}
+          onLinkNote={linkNoteToAct}
+          onUnlinkNote={unlinkNoteFromAct}
           onMonsterCreated={(monster) => setMonsters(prev => [...prev, monster])}
         />
 

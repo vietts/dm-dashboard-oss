@@ -7,7 +7,9 @@ import {
   NarrativeNodeUpdate,
   NarrativeEdgeInsert,
   NarrativeNodeLinkInsert,
-  NarrativeNode
+  NarrativeNode,
+  NarrativeCheckInsert,
+  NarrativeCheckUpdate
 } from '@/types/database'
 
 interface UseNarrativeActionsOptions {
@@ -415,6 +417,78 @@ export function useNarrativeActions({ actId, refetch }: UseNarrativeActionsOptio
     return true
   }, [actId, supabase, refetch])
 
+  // ============================================
+  // CHECK OPERATIONS
+  // ============================================
+
+  const createCheck = useCallback(async (
+    nodeId: string,
+    data: Omit<NarrativeCheckInsert, 'node_id'>
+  ): Promise<string | null> => {
+    // Get current max sort_order for this node
+    const { data: existingChecks } = await supabase
+      .from('dnd_narrative_checks')
+      .select('sort_order')
+      .eq('node_id', nodeId)
+      .order('sort_order', { ascending: false })
+      .limit(1)
+
+    const nextSortOrder = existingChecks && existingChecks.length > 0
+      ? (existingChecks[0].sort_order || 0) + 1
+      : 0
+
+    const { data: newCheck, error } = await supabase
+      .from('dnd_narrative_checks')
+      .insert({
+        ...data,
+        node_id: nodeId,
+        sort_order: nextSortOrder
+      })
+      .select('id')
+      .single()
+
+    if (error) {
+      console.error('Error creating check:', error)
+      return null
+    }
+
+    await refetch()
+    return newCheck.id
+  }, [supabase, refetch])
+
+  const updateCheck = useCallback(async (
+    checkId: string,
+    updates: NarrativeCheckUpdate
+  ): Promise<boolean> => {
+    const { error } = await supabase
+      .from('dnd_narrative_checks')
+      .update(updates)
+      .eq('id', checkId)
+
+    if (error) {
+      console.error('Error updating check:', error)
+      return false
+    }
+
+    await refetch()
+    return true
+  }, [supabase, refetch])
+
+  const deleteCheck = useCallback(async (checkId: string): Promise<boolean> => {
+    const { error } = await supabase
+      .from('dnd_narrative_checks')
+      .delete()
+      .eq('id', checkId)
+
+    if (error) {
+      console.error('Error deleting check:', error)
+      return false
+    }
+
+    await refetch()
+    return true
+  }, [supabase, refetch])
+
   return {
     // Node operations
     createNode,
@@ -429,6 +503,10 @@ export function useNarrativeActions({ actId, refetch }: UseNarrativeActionsOptio
     // Link operations
     addLink,
     removeLink,
+    // Check operations
+    createCheck,
+    updateCheck,
+    deleteCheck,
     // Live session operations
     takePath,
     setCurrentNode,

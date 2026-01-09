@@ -7,6 +7,7 @@ import {
   NarrativeEdge,
   NarrativeNodeLink,
   NarrativeTree,
+  NarrativeCheck,
   StoryNote,
   Encounter,
   Monster
@@ -21,6 +22,7 @@ interface UseNarrativeTreeResult {
   nodes: NarrativeNode[]
   edges: NarrativeEdge[]
   links: NarrativeNodeLink[]
+  checks: NarrativeCheck[]
   rootNode: NarrativeNode | null
   currentNode: NarrativeNode | null
   visitedPath: NarrativeNode[]
@@ -37,6 +39,7 @@ export function useNarrativeTree({ actId }: UseNarrativeTreeOptions): UseNarrati
   const [nodes, setNodes] = useState<NarrativeNode[]>([])
   const [edges, setEdges] = useState<NarrativeEdge[]>([])
   const [links, setLinks] = useState<NarrativeNodeLink[]>([])
+  const [checks, setChecks] = useState<NarrativeCheck[]>([])
   const [notes, setNotes] = useState<StoryNote[]>([])
   const [encounters, setEncounters] = useState<Encounter[]>([])
   const [monsters, setMonsters] = useState<Monster[]>([])
@@ -86,6 +89,20 @@ export function useNarrativeTree({ actId }: UseNarrativeTreeOptions): UseNarrati
         linksData = linksResult || []
       }
 
+      // Fetch checks for these nodes
+      let checksData: NarrativeCheck[] = []
+
+      if (nodeIds.length > 0) {
+        const { data: checksResult, error: checksError } = await supabase
+          .from('dnd_narrative_checks')
+          .select('*')
+          .in('node_id', nodeIds)
+          .order('sort_order', { ascending: true })
+
+        if (checksError) throw checksError
+        checksData = checksResult || []
+      }
+
       // Get linked content IDs
       const noteIds = linksData.filter(l => l.link_type === 'note').map(l => l.link_id)
       const encounterIds = linksData.filter(l => l.link_type === 'encounter').map(l => l.link_id)
@@ -124,6 +141,7 @@ export function useNarrativeTree({ actId }: UseNarrativeTreeOptions): UseNarrati
       setNodes(nodesData || [])
       setEdges(edgesData)
       setLinks(linksData)
+      setChecks(checksData)
       setNotes(notesData)
       setEncounters(encountersData)
       setMonsters(monstersData)
@@ -133,7 +151,8 @@ export function useNarrativeTree({ actId }: UseNarrativeTreeOptions): UseNarrati
     } finally {
       setLoading(false)
     }
-  }, [actId, supabase])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actId]) // supabase client is stable, don't include in deps
 
   useEffect(() => {
     fetchTree()
@@ -176,6 +195,7 @@ export function useNarrativeTree({ actId }: UseNarrativeTreeOptions): UseNarrati
     nodes,
     edges,
     links,
+    checks,
     rootNode,
     currentNode,
     visitedPath,

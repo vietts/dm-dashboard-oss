@@ -167,7 +167,7 @@ export default function Home() {
                         {campaign.description || 'Nessuna descrizione'}
                       </p>
                       <p className="text-xs text-[var(--ink-faded)] mt-4">
-                        Creata il {new Date(campaign.created_at).toLocaleDateString('it-IT')}
+                        Creata il {new Date(campaign.created_at ?? new Date()).toLocaleDateString('it-IT')}
                       </p>
                     </CardContent>
                   </Card>

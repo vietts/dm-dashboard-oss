@@ -12,31 +12,25 @@ import { Search, Loader2, Wand2, X, BookOpen } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { normalizeClassName, SPELL_SLOT_PROGRESSION } from '@/lib/class-features'
 import type { SpellsStepProps } from '../types'
-import type { CachedSpell } from '@/types/database'
+import type { Spell2024 } from '@/lib/spells-2024'
 
-// Spell class mapping for Open5e
-const CLASS_SPELL_LISTS: Record<string, string> = {
-  wizard: 'wizard',
-  bard: 'bard',
-  ranger: 'ranger',
-  paladin: 'paladin',
-  warlock: 'warlock',
-  cleric: 'cleric',
-  druid: 'druid',
-  sorcerer: 'sorcerer',
-}
+// Spell classes available in D&D 2024
+const SPELLCASTING_CLASSES = [
+  'wizard', 'bard', 'ranger', 'paladin',
+  'warlock', 'cleric', 'druid', 'sorcerer'
+]
 
 export function SpellsStep({ character, state, updateState }: SpellsStepProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [isLoading, setIsLoading] = useState(false)
-  const [spells, setSpells] = useState<CachedSpell[]>([])
+  const [spells, setSpells] = useState<Spell2024[]>([])
 
   const normalizedClass = normalizeClassName(character.class || 'wizard')
-  const spellClass = CLASS_SPELL_LISTS[normalizedClass]
+  const spellClass = SPELLCASTING_CLASSES.includes(normalizedClass) ? normalizedClass : null
 
   // Get spell slot info for the new level
   const slotProgression = SPELL_SLOT_PROGRESSION[normalizedClass]?.[state.targetLevel]
-  const prevSlotProgression = SPELL_SLOT_PROGRESSION[normalizedClass]?.[character.level]
+  const prevSlotProgression = SPELL_SLOT_PROGRESSION[normalizedClass]?.[character.level ?? 1]
 
   // Determine max spell level the character can cast
   const maxSpellLevel = slotProgression
@@ -51,15 +45,15 @@ export function SpellsStep({ character, state, updateState }: SpellsStepProps) {
       setIsLoading(true)
       try {
         let query = supabase
-          .from('open5e_spells')
+          .from('dnd_2024_spells')
           .select('*')
-          .ilike('dnd_class', `%${spellClass}%`)
-          .lte('level_int', maxSpellLevel)
-          .order('level_int', { ascending: true })
+          .contains('classes', [spellClass])
+          .lte('level', maxSpellLevel)
+          .order('level', { ascending: true })
           .order('name', { ascending: true })
 
         if (searchQuery.trim()) {
-          query = query.ilike('name', `%${searchQuery}%`)
+          query = query.or(`name.ilike.%${searchQuery}%,name_it.ilike.%${searchQuery}%`)
         }
 
         const { data, error } = await query.limit(50)
@@ -78,9 +72,9 @@ export function SpellsStep({ character, state, updateState }: SpellsStepProps) {
     return () => clearTimeout(debounce)
   }, [searchQuery, spellClass, maxSpellLevel, supabase])
 
-  const handleSpellToggle = (spell: CachedSpell, checked: boolean) => {
+  const handleSpellToggle = (spell: Spell2024, checked: boolean) => {
     if (checked && state.newSpells.length < state.newSpellsCount) {
-      updateState({ newSpells: [...state.newSpells, spell] })
+      updateState({ newSpells: [...state.newSpells, spell as any] })
     } else if (!checked) {
       updateState({ newSpells: state.newSpells.filter(s => s.id !== spell.id) })
     }
@@ -90,8 +84,8 @@ export function SpellsStep({ character, state, updateState }: SpellsStepProps) {
     updateState({ newSpells: state.newSpells.filter(s => s.id !== spellId) })
   }
 
-  const formatSpellLevel = (level: number | null): string => {
-    if (level === null || level === 0) return 'Trucchetto'
+  const formatSpellLevel = (level: number): string => {
+    if (level === 0) return 'Trucchetto'
     return `${level}° livello`
   }
 
@@ -220,19 +214,29 @@ export function SpellsStep({ character, state, updateState }: SpellsStepProps) {
                   />
                   <Label htmlFor={spell.id} className="flex-1 cursor-pointer">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{spell.name}</span>
+                      <span className="font-medium">{spell.name_it || spell.name}</span>
                       <Badge variant="outline" className="text-xs">
-                        {formatSpellLevel(spell.level_int)}
+                        {formatSpellLevel(spell.level)}
                       </Badge>
                       {spell.school && (
                         <Badge variant="secondary" className="text-xs">
                           {spell.school}
                         </Badge>
                       )}
+                      {spell.concentration && (
+                        <Badge variant="outline" className="text-xs text-orange-600 border-orange-300">
+                          C
+                        </Badge>
+                      )}
+                      {spell.ritual && (
+                        <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
+                          R
+                        </Badge>
+                      )}
                     </div>
                     {spell.description && (
                       <p className="text-sm text-muted-foreground line-clamp-2 mt-1">
-                        {spell.description}
+                        {spell.description_it || spell.description}
                       </p>
                     )}
                   </Label>

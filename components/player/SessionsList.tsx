@@ -64,7 +64,7 @@ export default function SessionsList({ sessions }: SessionsListProps) {
                     <span className="text-[var(--ink)] font-medium">
                       Sessione #{session.session_number}
                     </span>
-                    {session.xp_awarded > 0 && (
+                    {(session.xp_awarded ?? 0) > 0 && (
                       <span className="text-xs text-[var(--health-mid)] font-medium">+{session.xp_awarded} XP</span>
                     )}
                   </div>
@@ -95,7 +95,7 @@ export default function SessionsList({ sessions }: SessionsListProps) {
 
       {/* Session Detail Modal */}
       <Dialog open={!!selectedSession} onOpenChange={(open) => !open && setSelectedSession(null)}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <GameIcon name="scroll" category="ui" size={20} className="text-[var(--teal)]" />
@@ -103,6 +103,7 @@ export default function SessionsList({ sessions }: SessionsListProps) {
             </DialogTitle>
           </DialogHeader>
 
+          <div className="flex-1 overflow-y-auto py-4">
           <div className="space-y-4">
             {/* Date and XP */}
             <div className="flex items-center justify-between text-sm">
@@ -135,6 +136,7 @@ export default function SessionsList({ sessions }: SessionsListProps) {
                 </p>
               </div>
             )}
+          </div>
           </div>
         </DialogContent>
       </Dialog>

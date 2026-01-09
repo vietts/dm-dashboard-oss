@@ -2,7 +2,7 @@
 
 import { useMemo, useCallback, useRef, useEffect, useState } from 'react'
 import { Node, Edge, NodeChange, EdgeChange, applyNodeChanges, applyEdgeChanges, XYPosition } from '@xyflow/react'
-import { NarrativeNode, NarrativeEdge, NarrativeNodeLink, StoryNote, Encounter } from '@/types/database'
+import { NarrativeNode, NarrativeEdge, NarrativeNodeLink, NarrativeCheck, StoryNote, Encounter } from '@/types/database'
 import dagre from '@dagrejs/dagre'
 
 // Default grid spacing for auto-layout
@@ -16,11 +16,12 @@ const DEFAULT_START_Y = 100
 // ============================================
 export interface CanvasNodeData {
   dbNode: NarrativeNode
-  isRoot: boolean
-  isCurrent: boolean
-  wasVisited: boolean
+  isRoot: boolean | null
+  isCurrent: boolean | null
+  wasVisited: boolean | null
   linkedNotes: number
   linkedEncounters: number
+  checksCount: number
   label: string
   description: string | null
   [key: string]: unknown // Index signature for React Flow compatibility
@@ -28,7 +29,7 @@ export interface CanvasNodeData {
 
 export interface CanvasEdgeData {
   dbEdge: NarrativeEdge
-  wasTaken: boolean
+  wasTaken: boolean | null
   label: string | null
   [key: string]: unknown // Index signature for React Flow compatibility
 }
@@ -44,10 +45,11 @@ interface TransformOptions {
   nodes: NarrativeNode[]
   edges: NarrativeEdge[]
   links: NarrativeNodeLink[]
+  checks: NarrativeCheck[]
 }
 
 export function transformToCanvasNodes(options: TransformOptions): CanvasNode[] {
-  const { nodes, edges, links } = options
+  const { nodes, edges, links, checks } = options
 
   // Count links per node
   const linkCounts = new Map<string, { notes: number; encounters: number }>()
@@ -58,13 +60,21 @@ export function transformToCanvasNodes(options: TransformOptions): CanvasNode[] 
     linkCounts.set(link.node_id, existing)
   })
 
+  // Count checks per node
+  const checkCounts = new Map<string, number>()
+  checks.forEach(check => {
+    const existing = checkCounts.get(check.node_id) || 0
+    checkCounts.set(check.node_id, existing + 1)
+  })
+
   return nodes.map(node => {
     const counts = linkCounts.get(node.id) || { notes: 0, encounters: 0 }
+    const checksCount = checkCounts.get(node.id) || 0
 
     // Use stored positions, or auto-calculate based on index
     const position: XYPosition = {
-      x: node.position_x !== 0 ? node.position_x : DEFAULT_START_X,
-      y: node.position_y !== 0 ? node.position_y : DEFAULT_START_Y
+      x: (node.position_x !== null && node.position_x !== 0) ? node.position_x : DEFAULT_START_X,
+      y: (node.position_y !== null && node.position_y !== 0) ? node.position_y : DEFAULT_START_Y
     }
 
     return {
@@ -78,6 +88,7 @@ export function transformToCanvasNodes(options: TransformOptions): CanvasNode[] 
         wasVisited: node.was_visited,
         linkedNotes: counts.notes,
         linkedEncounters: counts.encounters,
+        checksCount,
         label: node.title,
         description: node.description
       }
@@ -91,7 +102,7 @@ export function transformToCanvasEdges(edges: NarrativeEdge[]): CanvasEdge[] {
     source: edge.from_node_id,
     target: edge.to_node_id,
     type: 'narrative',
-    animated: edge.was_taken, // Animate taken paths
+    animated: edge.was_taken ?? false, // Animate taken paths
     data: {
       dbEdge: edge,
       wasTaken: edge.was_taken,
@@ -107,6 +118,7 @@ interface UseCanvasSyncOptions {
   nodes: NarrativeNode[]
   edges: NarrativeEdge[]
   links: NarrativeNodeLink[]
+  checks: NarrativeCheck[]
   onPositionUpdate: (nodeId: string, position: { x: number; y: number }) => Promise<boolean>
 }
 
@@ -121,6 +133,7 @@ export function useCanvasSync({
   nodes,
   edges,
   links,
+  checks,
   onPositionUpdate
 }: UseCanvasSyncOptions): UseCanvasSyncResult {
   // Local state for positions during drag (for smooth UI)
@@ -137,7 +150,7 @@ export function useCanvasSync({
 
   // Transform DB data to React Flow format, merging with local positions
   const canvasNodes = useMemo(() => {
-    const baseNodes = transformToCanvasNodes({ nodes, edges, links })
+    const baseNodes = transformToCanvasNodes({ nodes, edges, links, checks })
 
     // Override positions with local state during drag
     return baseNodes.map(node => {
@@ -147,7 +160,7 @@ export function useCanvasSync({
       }
       return node
     })
-  }, [nodes, edges, links, localPositions])
+  }, [nodes, edges, links, checks, localPositions])
 
   const canvasEdges = useMemo(() => {
     return transformToCanvasEdges(edges)
@@ -233,41 +246,66 @@ export function calculateNewNodePosition(
   siblingCount: number
 ): { x: number; y: number } {
   return {
-    x: parentNode.position_x + (siblingCount * GRID_X),
-    y: parentNode.position_y + GRID_Y
+    x: (parentNode.position_x ?? DEFAULT_START_X) + (siblingCount * GRID_X),
+    y: (parentNode.position_y ?? DEFAULT_START_Y) + GRID_Y
   }
 }
 
 // ============================================
 // Re-layout all nodes (Dagre algorithm)
 // ============================================
+export interface DagreLayoutSettings {
+  nodesep: number
+  ranksep: number
+  edgesep: number
+  marginx: number
+  marginy: number
+  nodeWidth: number
+  nodeHeight: number
+}
+
+// Default settings (normal mode)
+const DEFAULT_DAGRE_SETTINGS: DagreLayoutSettings = {
+  nodesep: 160,
+  ranksep: 160,
+  edgesep: 70,
+  marginx: 60,
+  marginy: 60,
+  nodeWidth: 200,
+  nodeHeight: 90
+}
+
 export function calculateAutoLayout(
   nodes: NarrativeNode[],
-  edges: NarrativeEdge[]
+  edges: NarrativeEdge[],
+  settings?: Partial<DagreLayoutSettings>
 ): Map<string, { x: number; y: number }> {
   const positions = new Map<string, { x: number; y: number }>()
 
   if (nodes.length === 0) return positions
+
+  // Merge with defaults
+  const s = { ...DEFAULT_DAGRE_SETTINGS, ...settings }
 
   // Create dagre graph
   const g = new dagre.graphlib.Graph()
 
   g.setGraph({
     rankdir: 'TB',      // Top to Bottom
-    nodesep: 180,       // Horizontal spacing between nodes (+80% for Bezier curves)
-    ranksep: 200,       // Vertical spacing between ranks (+67% for labels)
-    edgesep: 80,        // Spacing between edges (+60% to avoid overlap)
-    marginx: 80,
-    marginy: 80
+    nodesep: s.nodesep,
+    ranksep: s.ranksep,
+    edgesep: s.edgesep,
+    marginx: s.marginx,
+    marginy: s.marginy
   })
 
   g.setDefaultEdgeLabel(() => ({}))
 
-  // Add nodes with dimensions matching CSS (max-w-[220px])
+  // Add nodes with dimensions
   nodes.forEach(node => {
     g.setNode(node.id, {
-      width: 220,   // Match CSS max-width
-      height: 100   // Include padding and badges
+      width: s.nodeWidth,
+      height: s.nodeHeight
     })
   })
 

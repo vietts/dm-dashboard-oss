@@ -3,7 +3,9 @@
 import { memo } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { GameIcon } from '@/components/icons/GameIcon'
+import { Dices } from 'lucide-react'
 import { CanvasNodeData } from '../hooks/useCanvasSync'
+import { useCanvasCompact } from '../hooks/useResponsiveCanvas'
 
 interface NarrativeCanvasNodeProps {
   data: CanvasNodeData
@@ -17,7 +19,8 @@ export const NarrativeCanvasNode = memo(function NarrativeCanvasNode({
   data,
   selected
 }: NarrativeCanvasNodeProps) {
-  const { label, description, isRoot, isCurrent, wasVisited, linkedNotes, linkedEncounters } = data
+  const { label, description, isRoot, isCurrent, wasVisited, linkedNotes, linkedEncounters, checksCount } = data
+  const { isCompact } = useCanvasCompact()
 
   // Determine border/ring color based on state
   let borderColor = 'border-[var(--ink-faded)]/30'
@@ -40,10 +43,15 @@ export const NarrativeCanvasNode = memo(function NarrativeCanvasNode({
     ringClass = 'ring-2 ring-[var(--teal)]'
   }
 
+  // Compact mode classes
+  const sizeClasses = isCompact
+    ? 'min-w-[120px] max-w-[160px]'
+    : 'min-w-[160px] max-w-[220px]'
+
   return (
     <div
       className={`
-        min-w-[160px] max-w-[220px]
+        ${sizeClasses}
         rounded-lg border-2 ${borderColor} ${bgClass} ${ringClass}
         shadow-md hover:shadow-lg transition-all duration-200
         cursor-grab active:cursor-grabbing
@@ -95,8 +103,8 @@ export const NarrativeCanvasNode = memo(function NarrativeCanvasNode({
         )}
 
         {/* Linked content badges */}
-        {(linkedNotes > 0 || linkedEncounters > 0) && (
-          <div className="flex gap-2 pt-1">
+        {(linkedNotes > 0 || linkedEncounters > 0 || checksCount > 0) && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
             {linkedNotes > 0 && (
               <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 bg-[var(--teal)]/10 text-[var(--teal)] rounded border border-[var(--teal)]/20">
                 <GameIcon name="scroll" category="ui" size={10} />
@@ -109,11 +117,17 @@ export const NarrativeCanvasNode = memo(function NarrativeCanvasNode({
                 {linkedEncounters}
               </span>
             )}
+            {checksCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded border border-purple-200">
+                <Dices size={10} />
+                {checksCount}
+              </span>
+            )}
           </div>
         )}
 
         {/* Empty state */}
-        {!description && linkedNotes === 0 && linkedEncounters === 0 && (
+        {!description && linkedNotes === 0 && linkedEncounters === 0 && checksCount === 0 && (
           <p className="text-xs text-[var(--ink-faded)] italic">
             Nessun contenuto
           </p>

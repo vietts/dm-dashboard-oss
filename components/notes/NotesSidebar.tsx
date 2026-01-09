@@ -3,9 +3,10 @@
 import { useState } from 'react'
 import { StoryNote } from '@/types/database'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { GameIcon } from '@/components/icons/GameIcon'
-import { ChevronRight, Plus } from 'lucide-react'
+import { ChevronRight, Plus, Link2, Unlink } from 'lucide-react'
 import { NotesSidebarItem } from './NotesSidebarItem'
 import { NotesSearch } from './NotesSearch'
 import { useNotes, NOTE_TYPES, NoteType, NoteTypeValue } from './hooks/useNotesContext'
@@ -15,17 +16,29 @@ interface NotesSidebarProps {
   onCreateNote?: (type: NoteTypeValue) => void
 }
 
+type TabValue = 'linked' | 'all'
+
 export function NotesSidebar({ onCreateNote }: NotesSidebarProps) {
   const {
     notesByType,
     filteredNotes,
+    filteredAllNotes,
     selectedNoteId,
     selectNote,
     searchQuery,
     setSearchQuery,
     activeTypeFilter,
     setActiveTypeFilter,
+    hasLinkingSupport,
+    linkNote,
+    unlinkNote,
+    actNumber,
+    notes,
+    allCampaignNotes,
   } = useNotes()
+
+  // Tab state (only used when linking is supported)
+  const [activeTab, setActiveTab] = useState<TabValue>('linked')
 
   // Track which groups are expanded
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
@@ -105,9 +118,100 @@ export function NotesSidebar({ onCreateNote }: NotesSidebarProps) {
         </div>
       </div>
 
+      {/* Tabs (only shown when linking is supported) */}
+      {hasLinkingSupport && (
+        <div className="px-3 py-2 border-b border-[var(--border)]">
+          <div className="flex bg-[var(--paper)] rounded-lg p-0.5">
+            <button
+              onClick={() => setActiveTab('linked')}
+              className={cn(
+                'flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+                activeTab === 'linked'
+                  ? 'bg-white text-[var(--ink)] shadow-sm'
+                  : 'text-[var(--ink-light)] hover:text-[var(--ink)]'
+              )}
+            >
+              <GameIcon name="book" category="ui" size={12} />
+              In questo atto
+              <span className={cn(
+                'px-1.5 rounded-full text-[10px]',
+                activeTab === 'linked' ? 'bg-[var(--teal)]/10 text-[var(--teal)]' : 'bg-[var(--border)]'
+              )}>
+                {notes.length}
+              </span>
+            </button>
+            <button
+              onClick={() => setActiveTab('all')}
+              className={cn(
+                'flex-1 px-3 py-1.5 rounded-md text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+                activeTab === 'all'
+                  ? 'bg-white text-[var(--ink)] shadow-sm'
+                  : 'text-[var(--ink-light)] hover:text-[var(--ink)]'
+              )}
+            >
+              <Link2 size={12} />
+              Collega note
+              <span className={cn(
+                'px-1.5 rounded-full text-[10px]',
+                activeTab === 'all' ? 'bg-[var(--coral)]/10 text-[var(--coral)]' : 'bg-[var(--border)]'
+              )}>
+                {allCampaignNotes.filter(n => !n.acts?.includes(actNumber!)).length}
+              </span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Notes List */}
       <div className="flex-1 overflow-y-auto p-2">
-        {isSearching || activeTypeFilter !== 'all' ? (
+        {/* Tab: All campaign notes (for linking) */}
+        {hasLinkingSupport && activeTab === 'all' ? (
+          <div className="space-y-1">
+            {filteredAllNotes.length === 0 ? (
+              <div className="text-center py-8 text-[var(--ink-light)] text-sm">
+                {searchQuery.trim() ? 'Nessuna nota trovata' : 'Tutte le note sono già collegate'}
+              </div>
+            ) : (
+              filteredAllNotes.map(note => (
+                <div
+                  key={note.id}
+                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-[var(--paper)] transition-colors group"
+                >
+                  <button
+                    onClick={() => linkNote?.(note.id)}
+                    className="p-1.5 rounded-md bg-[var(--teal)]/10 text-[var(--teal)] hover:bg-[var(--teal)]/20 transition-colors"
+                    title="Collega a questo atto"
+                  >
+                    <Plus size={14} />
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ color: NOTE_TYPES.find(t => t.value === note.note_type)?.color }}>
+                        <GameIcon
+                          name={NOTE_TYPES.find(t => t.value === note.note_type)?.icon || 'book'}
+                          category="ui"
+                          size={12}
+                        />
+                      </span>
+                      <span className="text-sm font-medium text-[var(--ink)] truncate">
+                        {note.title}
+                      </span>
+                    </div>
+                    {note.acts && note.acts.length > 0 && (
+                      <div className="flex gap-1 mt-0.5">
+                        {note.acts.map(a => (
+                          <span key={a} className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--border)] text-[var(--ink-light)]">
+                            Atto {a}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        ) : isSearching || activeTypeFilter !== 'all' ? (
           // Flat filtered list
           <div className="space-y-1">
             {filteredNotes.length === 0 ? (
@@ -121,6 +225,7 @@ export function NotesSidebar({ onCreateNote }: NotesSidebarProps) {
                   note={note}
                   isSelected={note.id === selectedNoteId}
                   onClick={() => selectNote(note.id)}
+                  onUnlink={hasLinkingSupport ? () => unlinkNote?.(note.id) : undefined}
                 />
               ))
             )}
@@ -183,6 +288,7 @@ export function NotesSidebar({ onCreateNote }: NotesSidebarProps) {
                           note={note}
                           isSelected={note.id === selectedNoteId}
                           onClick={() => selectNote(note.id)}
+                          onUnlink={hasLinkingSupport ? () => unlinkNote?.(note.id) : undefined}
                         />
                       ))}
                     </div>

@@ -53,7 +53,7 @@ export function ActSessions({ sessions, actNumber }: ActSessionsProps) {
                         })}
                       </Badge>
                     )}
-                    {session.xp_awarded > 0 && (
+                    {(session.xp_awarded ?? 0) > 0 && (
                       <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800">
                         +{session.xp_awarded} XP
                       </Badge>

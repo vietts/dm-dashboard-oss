@@ -1,5 +1,5 @@
 export { default as CharacterSheet } from './CharacterSheet'
-export { default as ResourceTracker } from './ResourceTracker'
+export { default as CharacterPanel } from './CharacterPanel'
 export { default as SessionsList } from './SessionsList'
 export { default as CombatLog } from './CombatLog'
 export { default as RevealedNotes } from './RevealedNotes'

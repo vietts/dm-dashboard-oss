@@ -846,3 +846,43 @@ export function normalizeClassName(className: string): string {
   const lower = className.toLowerCase()
   return mapping[lower] || lower
 }
+
+/**
+ * Get passive features (always available) for a character
+ * Filters out features that grant resources or require choices
+ */
+export function getPassiveFeatures(character: { class: string | null; level: number }): Array<{
+  id: string
+  name: string
+  max: number
+  current: number
+  recharge: 'passive'
+  class: string
+  description?: string
+}> {
+  const normalizedClass = normalizeClassName(character.class || 'fighter')
+  const allFeatures = CLASS_FEATURES[normalizedClass] || []
+
+  return allFeatures
+    .filter(f => {
+      // Must be unlocked at character's level
+      if (f.level > character.level) return false
+
+      // Exclude features that grant resources (already in class_resources)
+      if (f.grantsResource) return false
+
+      // Exclude features that require choices (subclass, fighting style, invocations)
+      if (f.requiresChoice) return false
+
+      return true
+    })
+    .map(f => ({
+      id: f.id,
+      name: f.name,
+      max: 0,
+      current: 0,
+      recharge: 'passive' as const,
+      class: character.class || '',
+      description: f.description
+    }))
+}

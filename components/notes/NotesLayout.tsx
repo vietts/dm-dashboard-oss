@@ -25,10 +25,14 @@ import { NotesProvider, useNotes, NoteTypeValue } from './hooks/useNotesContext'
 interface NotesLayoutProps {
   campaignId: string
   notes: StoryNote[]
+  allCampaignNotes?: StoryNote[] // All notes in campaign (for linking UI)
+  actNumber?: number // Current act number (for linking UI)
   monsters: Monster[]
   onCreateNote: (data: Partial<StoryNote>) => Promise<void>
   onUpdateNote: (id: string, updates: Partial<StoryNote>) => Promise<void>
   onDeleteNote: (id: string) => Promise<void>
+  onLinkNote?: (noteId: string) => Promise<void>
+  onUnlinkNote?: (noteId: string) => Promise<void>
   onMonsterCreated?: (monster: Monster) => void
 }
 
@@ -152,20 +156,28 @@ function NotesLayoutInner() {
 export function NotesLayout({
   campaignId,
   notes,
+  allCampaignNotes,
+  actNumber,
   monsters,
   onCreateNote,
   onUpdateNote,
   onDeleteNote,
+  onLinkNote,
+  onUnlinkNote,
   onMonsterCreated,
 }: NotesLayoutProps) {
   return (
     <NotesProvider
       campaignId={campaignId}
       notes={notes}
+      allCampaignNotes={allCampaignNotes}
+      actNumber={actNumber}
       monsters={monsters}
       onCreateNote={onCreateNote}
       onUpdateNote={onUpdateNote}
       onDeleteNote={onDeleteNote}
+      onLinkNote={onLinkNote}
+      onUnlinkNote={onUnlinkNote}
       onMonsterCreated={onMonsterCreated}
     >
       <NotesLayoutInner />

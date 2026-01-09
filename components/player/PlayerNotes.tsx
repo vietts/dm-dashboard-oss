@@ -194,7 +194,7 @@ export default function PlayerNotes({ playerId, notes, onUpdate, readOnly = fals
                     )}
                   </div>
                   <div className="text-xs text-[var(--ink-faded)] mt-2">
-                    {new Date(note.updated_at).toLocaleDateString('it-IT')}
+                    {new Date(note.updated_at ?? new Date()).toLocaleDateString('it-IT')}
                   </div>
                 </div>
               )}

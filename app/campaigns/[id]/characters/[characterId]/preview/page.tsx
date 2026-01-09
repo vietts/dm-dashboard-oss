@@ -17,8 +17,7 @@ import type {
 } from '@/types/database'
 
 // Components from Player Dashboard
-import CharacterSheet from '@/components/player/CharacterSheet'
-import ResourceTracker from '@/components/player/ResourceTracker'
+import CharacterPanel from '@/components/player/CharacterPanel'
 import SessionsList from '@/components/player/SessionsList'
 import CombatLog from '@/components/player/CombatLog'
 import RevealedNotes from '@/components/player/RevealedNotes'
@@ -27,9 +26,21 @@ import SpellManager from '@/components/player/SpellManager'
 import PlayerNotes from '@/components/player/PlayerNotes'
 import QuickGuide from '@/components/player/QuickGuide'
 import Glossary from '@/components/player/Glossary'
+import SpellSearchWidget from '@/components/player/SpellSearchWidget'
 import CharacterBackground from '@/components/player/CharacterBackground'
+import ActionsPanel from '@/components/player/ActionsPanel'
+import SkillsPanel from '@/components/player/SkillsPanel'
+import FeaturesPanel from '@/components/player/FeaturesPanel'
 import { GameIcon } from '@/components/icons/GameIcon'
 import { ArrowLeft } from 'lucide-react'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { getAbilityColor, getAbilityScoresInOrder, type AbilityScore } from '@/lib/ability-colors'
+import { getClassMechanics, getSpellcastingAbility, isSpellcaster } from '@/lib/class-mechanics'
+import { SKILLS } from '@/lib/skills'
+import { calculateProficiencyBonus } from '@/lib/skills'
+import FormulaBreakdown from '@/components/player/educational/FormulaBreakdown'
+import ClassInfoTooltip from '@/components/player/educational/ClassInfoTooltip'
 
 export default function CharacterPreview() {
   const params = useParams()
@@ -52,8 +63,8 @@ export default function CharacterPreview() {
   const [backgroundAnswers, setBackgroundAnswers] = useState<BackgroundAnswers>({})
   const [characterSecret, setCharacterSecret] = useState<string | null>(null)
 
-  // Active section for mobile
-  const [activeSection, setActiveSection] = useState<string>('character')
+  // Active tab (used for both mobile and desktop)
+  const [activeTab, setActiveTab] = useState<string>('stats')
 
   // Load all data
   const loadData = useCallback(async () => {
@@ -252,177 +263,331 @@ export default function CharacterPreview() {
     )
   }
 
-  const sections = [
-    { id: 'character', icon: 'masks', title: 'Personaggio' },
-    { id: 'backstory', icon: 'book', title: 'Storia' },
-    { id: 'inventory', icon: 'skull', title: 'Inventario' },
-    { id: 'spells', icon: 'wand', title: 'Incantesimi' },
-    { id: 'sessions', icon: 'scroll', title: 'Sessioni' },
-    { id: 'notes', icon: 'quill', title: 'Note' },
-    { id: 'guide', icon: 'd20', title: 'Guida' },
-  ]
+  // Calculate ability modifier
+  function getModifier(score: number): string {
+    const mod = Math.floor((score - 10) / 2)
+    return mod >= 0 ? `+${mod}` : `${mod}`
+  }
+
+  function getModifierValue(score: number): number {
+    return Math.floor((score - 10) / 2)
+  }
+
+  // Get ability score value for character
+  function getAbilityScore(ability: AbilityScore): number {
+    const abilityMap: Record<AbilityScore, number | null> = {
+      STR: character!.str,
+      DEX: character!.dex,
+      CON: character!.con,
+      INT: character!.int,
+      WIS: character!.wis,
+      CHA: character!.cha,
+    }
+    return abilityMap[ability] ?? 10 // Default to 10 if null
+  }
+
+  const abilities = getAbilityScoresInOrder().map((ability) => {
+    const score = getAbilityScore(ability)
+    const color = getAbilityColor(ability)
+    return { ability, score, color, modifier: getModifierValue(score) }
+  })
+
+  // Get skills for each ability
+  function getSkillsForAbility(ability: AbilityScore): string[] {
+    return SKILLS.filter((skill) => skill.ability === ability).map((skill) => skill.name)
+  }
+
+  // Get spell stats for tooltips
+  const proficiencyBonus = calculateProficiencyBonus(character.level ?? 1)
+  const spellcastingAbility = character.class ? getSpellcastingAbility(character.class) : null
+  const spellcastingScore = spellcastingAbility ? getAbilityScore(spellcastingAbility) : 0
+  const spellcastingMod = getModifierValue(spellcastingScore)
+  const spellAttackBonus = spellcastingMod + proficiencyBonus
 
   return (
     <div className="min-h-screen bg-[var(--cream)]">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-[var(--paper)] border-b-2 border-[var(--border-decorative)] px-4 py-3 shadow-sm">
+      {/* Top Navigation Bar */}
+      <header className="sticky top-0 z-50 bg-[var(--paper)] border-b-2 border-[var(--border-decorative)] px-4 py-3 shadow-sm">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link
-              href={`/campaigns/${campaignId}?tab=party`}
-              className="p-2 -ml-2 rounded-lg hover:bg-[var(--cream-dark)] transition-colors"
-              title="Torna alla campagna"
-            >
-              <ArrowLeft size={20} className="text-[var(--ink-light)]" />
-            </Link>
-            <div className="flex items-center gap-3">
-              {character.avatar_url ? (
-                <img
-                  src={character.avatar_url}
-                  alt={character.name}
-                  className="w-10 h-10 rounded-full object-cover border-2 border-[var(--teal)]"
-                />
-              ) : (
-                <div className="w-10 h-10 rounded-full bg-[var(--teal)]/20 flex items-center justify-center">
-                  <GameIcon name="masks" category="ui" size={20} className="text-[var(--teal)]" />
-                </div>
-              )}
-              <div>
-                <h1 className="text-lg font-display font-bold text-[var(--ink)]">{character.name}</h1>
-                <p className="text-xs text-[var(--ink-light)]">
-                  {campaign?.name || 'Campagna'} • <span className="text-[var(--teal)]">Preview DM</span>
-                </p>
-              </div>
-            </div>
+          <Link
+            href={`/campaigns/${campaignId}?tab=party`}
+            className="p-2 -ml-2 rounded-lg hover:bg-[var(--cream-dark)] transition-colors"
+            title="Torna alla campagna"
+          >
+            <ArrowLeft size={20} className="text-[var(--ink-light)]" />
+          </Link>
+          <div className="text-center flex-1">
+            <h1 className="text-lg font-display font-bold text-[var(--ink)]">{character.name}</h1>
+            <p className="text-xs text-[var(--ink-light)]">
+              {campaign?.name || 'Campagna'} • <span className="text-[var(--teal)]">Preview DM</span>
+            </p>
           </div>
           <div className="text-xs text-[var(--ink-faded)] bg-[var(--teal)]/10 px-2 py-1 rounded">
-            Modalità sola lettura
+            DM View
           </div>
-        </div>
-
-        {/* Mobile Navigation - Quick Nav */}
-        <div className="flex gap-2 mt-3 overflow-x-auto pb-1 md:hidden scrollbar-hide">
-          {sections.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => setActiveSection(s.id)}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm whitespace-nowrap min-h-[44px] transition-all ${
-                activeSection === s.id
-                  ? 'bg-[var(--teal)] text-white shadow-md'
-                  : 'bg-[var(--cream-dark)] text-[var(--ink-light)] hover:bg-[var(--ink)]/10'
-              }`}
-            >
-              <GameIcon name={s.icon} category="ui" size={18} className="flex-shrink-0" />
-              <span>{s.title}</span>
-            </button>
-          ))}
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto p-4">
-        {/* Desktop Grid */}
-        <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Column 1: Character + Background + Guide */}
-          <div className="space-y-4">
-            <CharacterSheet character={character} />
-            <ResourceTracker character={character} />
-            {playerId && (
-              <CharacterBackground
-                playerId={playerId}
-                initialAnswers={backgroundAnswers}
-                secret={characterSecret}
-                onSecretSave={async () => {}}  // DM can't edit, just view
-                showSecret={true}  // DM sees the secret content
+      {/* Main Content with Tabs */}
+      <main className="max-w-7xl mx-auto">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          {/* Tab Navigation */}
+          <div className="sticky top-[72px] z-40 bg-[var(--paper)] border-b border-[var(--border-decorative)] overflow-x-auto scrollbar-hide">
+            <TabsList className="inline-flex flex-nowrap justify-start h-auto p-0 bg-transparent rounded-none border-b-0 min-w-full w-auto px-4 gap-1">
+              <TabsTrigger
+                value="stats"
+                className="min-h-[44px] rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--teal)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--teal)] px-3 sm:px-4 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
+              >
+                Statistiche
+              </TabsTrigger>
+              <TabsTrigger
+                value="actions"
+                className="min-h-[44px] rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--teal)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--teal)] px-3 sm:px-4 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
+              >
+                Azioni
+              </TabsTrigger>
+              <TabsTrigger
+                value="spells"
+                className="min-h-[44px] rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--teal)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--teal)] px-3 sm:px-4 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
+              >
+                Incantesimi
+              </TabsTrigger>
+              <TabsTrigger
+                value="inventory"
+                className="min-h-[44px] rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--teal)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--teal)] px-3 sm:px-4 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
+              >
+                Inventario
+              </TabsTrigger>
+              <TabsTrigger
+                value="features"
+                className="min-h-[44px] rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--teal)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--teal)] px-3 sm:px-4 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
+              >
+                Privilegi
+              </TabsTrigger>
+              <TabsTrigger
+                value="notes"
+                className="min-h-[44px] rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--teal)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--teal)] px-3 sm:px-4 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
+              >
+                Note
+              </TabsTrigger>
+              <TabsTrigger
+                value="campaign"
+                className="min-h-[44px] rounded-none border-b-2 border-transparent data-[state=active]:border-[var(--teal)] data-[state=active]:bg-transparent data-[state=active]:text-[var(--teal)] px-3 sm:px-4 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
+              >
+                Campagna
+              </TabsTrigger>
+            </TabsList>
+          </div>
+
+          {/* Tab Content */}
+          <div className="p-4">
+            {/* Stats Tab */}
+            <TabsContent value="stats" className="space-y-4 mt-0">
+              {/* Ability Scores Grid */}
+              <div className="parchment-card p-4">
+                <h3 className="text-lg font-display font-bold text-[var(--ink)] mb-3">Punteggi di Caratteristica</h3>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+                  {abilities.map((abilityData) => (
+                    <TooltipProvider key={abilityData.ability}>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <div
+                            className={`${abilityData.color.bg} ${abilityData.color.border} border-2 rounded-lg p-3 text-center cursor-help transition-transform hover:scale-105`}
+                          >
+                            <div className={`text-xs ${abilityData.color.text} font-bold uppercase tracking-wide mb-1`}>
+                              {abilityData.color.name}
+                            </div>
+                            <div className={`text-2xl font-display font-bold ${abilityData.color.text} leading-tight`}>
+                              {getModifier(abilityData.score)}
+                            </div>
+                            <div className="text-sm text-[var(--ink)] mt-1">({abilityData.score})</div>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" align="center">
+                          <div className="p-3 min-w-[220px]">
+                            <div className="font-semibold text-sm mb-2 text-[var(--cream)]">
+                              {abilityData.color.fullName}
+                            </div>
+
+                            {/* Formula */}
+                            <div className="bg-white/10 p-2 rounded text-xs font-mono mb-3 text-[var(--cream)]">
+                              (Punteggio - 10) ÷ 2 = Modificatore
+                            </div>
+
+                            {/* Calculation */}
+                            <div className="text-xs mb-3 text-[var(--cream)]/80">
+                              ({abilityData.score} - 10) ÷ 2 ={' '}
+                              <span className="font-bold text-[var(--teal-light)]">
+                                {getModifier(abilityData.score)}
+                              </span>
+                            </div>
+
+                            {/* Related skills */}
+                            <div className="pt-3 border-t border-[var(--cream)]/30">
+                              <div className="font-semibold text-xs mb-1 text-[var(--cream)]">
+                                Abilità {abilityData.color.name}:
+                              </div>
+                              <div className="space-y-0.5 text-xs text-[var(--cream)]/80">
+                                {getSkillsForAbility(abilityData.ability).map((skillName) => (
+                                  <div key={skillName}>• {skillName}</div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ))}
+                </div>
+              </div>
+
+              {/* Character Panel (merged identity + resources) */}
+              <CharacterPanel character={character} onUpdate={loadData} readOnly />
+
+              {/* Combat Stats */}
+              <div className="parchment-card p-4">
+                <h3 className="text-lg font-display font-bold text-[var(--ink)] mb-3">Statistiche di Combattimento</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="text-sm">
+                    <span className="text-[var(--ink-faded)]">Percezione Passiva</span>
+                    <div className="text-xl font-bold text-[var(--ink)]">{character.passive_perception}</div>
+                  </div>
+                  {character.spell_save_dc && spellcastingAbility && (
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <div className="text-sm cursor-help">
+                            <span className="text-[var(--ink-faded)]">CD Tiro Salvezza</span>
+                            <div className="text-xl font-bold text-[var(--ink)]">{character.spell_save_dc}</div>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" align="center">
+                          <FormulaBreakdown
+                            title="CD Tiro Salvezza Incantesimi"
+                            formula="8 + mod. Incantatore + Competenza"
+                            breakdown={[
+                              { label: 'Base', value: 8 },
+                              {
+                                label: `Mod. ${getAbilityColor(spellcastingAbility).name}`,
+                                value: spellcastingMod,
+                                color: getAbilityColor(spellcastingAbility),
+                              },
+                              { label: 'Competenza', value: proficiencyBonus },
+                            ]}
+                            total={character.spell_save_dc}
+                            characterClass={character.class || ''}
+                          />
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  {spellcastingAbility && (
+                    <TooltipProvider>
+                      <Tooltip delayDuration={300}>
+                        <TooltipTrigger asChild>
+                          <div className="text-sm cursor-help">
+                            <span className="text-[var(--ink-faded)]">Attacco Incantesimi</span>
+                            <div className="text-xl font-bold text-[var(--ink)]">
+                              {spellAttackBonus >= 0 ? '+' : ''}
+                              {spellAttackBonus}
+                            </div>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" align="center">
+                          <FormulaBreakdown
+                            title="Bonus Attacco con Incantesimo"
+                            formula="mod. Incantatore + Competenza"
+                            breakdown={[
+                              {
+                                label: `Mod. ${getAbilityColor(spellcastingAbility).name}`,
+                                value: spellcastingMod,
+                                color: getAbilityColor(spellcastingAbility),
+                              },
+                              { label: 'Competenza', value: proficiencyBonus },
+                            ]}
+                            total={spellAttackBonus}
+                            characterClass={character.class || ''}
+                          />
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+              </div>
+
+              {/* Skills */}
+              <div className="parchment-card p-4">
+                <SkillsPanel character={character} onUpdate={loadData} readOnly />
+              </div>
+
+              {/* Quick Guide */}
+              <QuickGuide defaultCollapsed characterClass={character?.class ?? undefined} />
+            </TabsContent>
+
+            {/* Actions Tab */}
+            <TabsContent value="actions" className="space-y-4 mt-0">
+              <ActionsPanel character={character} onUpdate={loadData} readOnly />
+            </TabsContent>
+
+            {/* Spells Tab */}
+            <TabsContent value="spells" className="space-y-4 mt-0">
+              <SpellManager
+                characterId={character.id}
+                characterClass={character.class || ''}
+                characterLevel={character.level || 1}
+                stats={{
+                  int: character.int || 10,
+                  wis: character.wis || 10,
+                  cha: character.cha || 10
+                }}
+                spells={spells}
+                onUpdate={loadData}
               />
-            )}
-            <QuickGuide defaultCollapsed />
-          </div>
+              <SpellSearchWidget defaultCollapsed />
+            </TabsContent>
 
-          {/* Column 2: Actions + Glossary */}
-          <div className="space-y-4">
-            <InventoryManager
-              characterId={character.id}
-              items={inventory}
-              onUpdate={loadData}
-            />
-            <SpellManager
-              characterId={character.id}
-              spells={spells}
-              onUpdate={loadData}
-            />
-            <PlayerNotes
-              playerId=""
-              notes={playerNotes}
-              onUpdate={() => {}}
-              readOnly
-            />
-            <Glossary defaultCollapsed />
-          </div>
+            {/* Inventory Tab */}
+            <TabsContent value="inventory" className="space-y-4 mt-0">
+              <InventoryManager
+                characterId={character.id}
+                items={inventory}
+                onUpdate={loadData}
+              />
+            </TabsContent>
 
-          {/* Column 3: Campaign */}
-          <div className="space-y-4">
-            <SessionsList sessions={sessions} />
-            <CombatLog encounters={encounters} />
-            <RevealedNotes notes={revealedNotes} />
-          </div>
-        </div>
+            {/* Features Tab */}
+            <TabsContent value="features" className="space-y-4 mt-0">
+              <FeaturesPanel character={character} readOnly />
+              <Glossary />
+            </TabsContent>
 
-        {/* Mobile: Show active section only */}
-        <div className="md:hidden space-y-4">
-          {activeSection === 'character' && (
-            <>
-              <CharacterSheet character={character} />
-              <ResourceTracker character={character} />
-            </>
-          )}
-          {activeSection === 'backstory' && playerId && (
-            <CharacterBackground
-              playerId={playerId}
-              initialAnswers={backgroundAnswers}
-              secret={characterSecret}
-              onSecretSave={async () => {}}  // DM can't edit, just view
-              showSecret={true}  // DM sees the secret content
-            />
-          )}
-          {activeSection === 'inventory' && (
-            <InventoryManager
-              characterId={character.id}
-              items={inventory}
-              onUpdate={loadData}
-            />
-          )}
-          {activeSection === 'spells' && (
-            <SpellManager
-              characterId={character.id}
-              spells={spells}
-              onUpdate={loadData}
-            />
-          )}
-          {activeSection === 'sessions' && (
-            <>
-              <SessionsList sessions={sessions} />
-              <CombatLog encounters={encounters} />
-            </>
-          )}
-          {activeSection === 'notes' && (
-            <>
+            {/* Notes Tab */}
+            <TabsContent value="notes" className="space-y-4 mt-0">
+              {playerId && (
+                <CharacterBackground
+                  playerId={playerId}
+                  initialAnswers={backgroundAnswers}
+                  secret={characterSecret}
+                  onSecretSave={async () => {}}
+                  showSecret={true}
+                />
+              )}
               <PlayerNotes
                 playerId=""
                 notes={playerNotes}
                 onUpdate={() => {}}
                 readOnly
               />
+            </TabsContent>
+
+            {/* Campaign Tab */}
+            <TabsContent value="campaign" className="space-y-4 mt-0">
+              <SessionsList sessions={sessions} />
+              <CombatLog encounters={encounters} />
               <RevealedNotes notes={revealedNotes} />
-            </>
-          )}
-          {activeSection === 'guide' && (
-            <>
-              <QuickGuide />
-              <Glossary />
-            </>
-          )}
-        </div>
+            </TabsContent>
+          </div>
+        </Tabs>
       </main>
     </div>
   )

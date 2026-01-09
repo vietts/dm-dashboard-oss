@@ -34,7 +34,8 @@ import { Progress } from '@/components/ui/progress'
 import { PlayerCodeManager } from '@/components/dm/PlayerCodeManager'
 import { LevelUpWizard } from '@/components/level-up'
 import type { LevelUpUpdates } from '@/components/level-up'
-import { TrendingUp } from 'lucide-react'
+import { MonsterEditDialog } from '@/components/monster/MonsterEditDialog'
+import { TrendingUp, Pencil } from 'lucide-react'
 
 export default function CampaignPage() {
   const params = useParams()
@@ -116,6 +117,8 @@ export default function CampaignPage() {
   const [isMonsterDialogOpen, setIsMonsterDialogOpen] = useState(false)
   const [selectedMonster, setSelectedMonster] = useState<Monster | any | null>(null)
   const [viewingMonster, setViewingMonster] = useState(false)
+  const [editingMonster, setEditingMonster] = useState<Monster | null>(null)
+  const [isMonsterEditDialogOpen, setIsMonsterEditDialogOpen] = useState(false)
   const [newMonster, setNewMonster] = useState({
     name: '',
     cr: '1',
@@ -226,7 +229,7 @@ export default function CampaignPage() {
 
   // Get notes for a specific act
   const getNotesForAct = (actNumber: number) => {
-    return notes.filter(n => n.act === actNumber)
+    return notes.filter(n => n.acts?.includes(actNumber))
   }
 
   // Encounter difficulties
@@ -268,8 +271,8 @@ export default function CampaignPage() {
   const actStats = useMemo(() => {
     return acts.map(act => ({
       ...act,
-      noteCount: notes.filter(n => n.act === act.act_number).length,
-      encounterCount: encounters.filter(e => e.act === act.act_number).length,
+      noteCount: notes.filter(n => n.acts?.includes(act.act_number)).length,
+      encounterCount: encounters.filter(e => e.acts?.includes(act.act_number)).length,
     }))
   }, [acts, notes, encounters])
 
@@ -329,7 +332,6 @@ export default function CampaignPage() {
       .from('dnd_story_notes')
       .select('*')
       .eq('campaign_id', campaignId)
-      .order('act')
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -344,7 +346,6 @@ export default function CampaignPage() {
       .from('dnd_encounters')
       .select('*')
       .eq('campaign_id', campaignId)
-      .order('act')
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -558,7 +559,7 @@ export default function CampaignPage() {
       description: act.description || '',
       theme: act.theme || '',
       objectives: act.objectives || [],
-      is_complete: act.is_complete,
+      is_complete: act.is_complete ?? false,
     })
     setIsActDialogOpen(true)
   }
@@ -592,7 +593,7 @@ export default function CampaignPage() {
           content: newNote.content || null,
           dm_notes: newNote.dm_notes || null,
           note_type: newNote.note_type,
-          act: newNote.act,
+          acts: [newNote.act],
           tags: newNote.tags,
           is_revealed: newNote.is_revealed,
         })
@@ -605,7 +606,7 @@ export default function CampaignPage() {
           content: newNote.content || null,
           dm_notes: newNote.dm_notes || null,
           note_type: newNote.note_type,
-          act: newNote.act,
+          acts: [newNote.act],
           tags: newNote.tags,
           is_revealed: newNote.is_revealed,
         } : n))
@@ -620,7 +621,7 @@ export default function CampaignPage() {
           content: newNote.content || null,
           dm_notes: newNote.dm_notes || null,
           note_type: newNote.note_type,
-          act: newNote.act,
+          acts: [newNote.act],
           tags: newNote.tags,
           is_revealed: newNote.is_revealed,
         }])
@@ -652,10 +653,10 @@ export default function CampaignPage() {
       title: note.title,
       content: note.content || '',
       dm_notes: note.dm_notes || '',
-      note_type: note.note_type,
-      act: note.act || 1,
+      note_type: note.note_type || 'general',
+      act: note.acts?.[0] || 1,
       tags: note.tags || [],
-      is_revealed: note.is_revealed,
+      is_revealed: note.is_revealed ?? false,
     })
     setIsNoteDialogOpen(true)
   }
@@ -676,15 +677,15 @@ export default function CampaignPage() {
 
   // Filter notes based on act and type
   const filteredNotes = notes.filter(note => {
-    if (noteFilter.act !== null && note.act !== noteFilter.act) return false
+    if (noteFilter.act !== null && !note.acts?.includes(noteFilter.act)) return false
     if (noteFilter.type !== null && note.note_type !== noteFilter.type) return false
     return true
   })
 
   // Get unique acts from notes and encounters
   const availableActs = Array.from(new Set([
-    ...notes.map(n => n.act).filter(Boolean),
-    ...encounters.map(e => e.act).filter(Boolean),
+    ...notes.flatMap(n => n.acts || []),
+    ...encounters.flatMap(e => e.acts || []),
     campaign?.current_act || 1
   ])).sort((a, b) => (a || 0) - (b || 0))
 
@@ -700,7 +701,7 @@ export default function CampaignPage() {
           description: newEncounter.description || null,
           location: newEncounter.location || null,
           difficulty: newEncounter.difficulty,
-          act: newEncounter.act,
+          acts: [newEncounter.act],
           status: newEncounter.status,
           notes: newEncounter.notes || null,
         })
@@ -713,7 +714,7 @@ export default function CampaignPage() {
           description: newEncounter.description || null,
           location: newEncounter.location || null,
           difficulty: newEncounter.difficulty,
-          act: newEncounter.act,
+          acts: [newEncounter.act],
           status: newEncounter.status,
           notes: newEncounter.notes || null,
         } : e))
@@ -727,7 +728,7 @@ export default function CampaignPage() {
           description: newEncounter.description || null,
           location: newEncounter.location || null,
           difficulty: newEncounter.difficulty,
-          act: newEncounter.act,
+          acts: [newEncounter.act],
           status: newEncounter.status,
           notes: newEncounter.notes || null,
         }])
@@ -771,8 +772,8 @@ export default function CampaignPage() {
       description: encounter.description || '',
       location: encounter.location || '',
       difficulty: encounter.difficulty || 'medium',
-      act: encounter.act,
-      status: encounter.status,
+      act: encounter.acts?.[0] || 1,
+      status: encounter.status || 'planned',
       notes: encounter.notes || '',
     })
     setIsEncounterDialogOpen(true)
@@ -794,7 +795,7 @@ export default function CampaignPage() {
 
   // Filter encounters based on act and status
   const filteredEncounters = encounters.filter(encounter => {
-    if (encounterFilter.act !== null && encounter.act !== encounterFilter.act) return false
+    if (encounterFilter.act !== null && !encounter.acts?.includes(encounterFilter.act)) return false
     if (encounterFilter.status !== null && encounter.status !== encounterFilter.status) return false
     return true
   })
@@ -927,6 +928,23 @@ export default function CampaignPage() {
     if (!error) {
       setMonsters(monsters.filter(m => m.id !== monsterId))
     }
+  }
+
+  function handleMonsterSaved(updatedMonster: Monster) {
+    setMonsters(monsters.map(m => m.id === updatedMonster.id ? updatedMonster : m))
+    setEditingMonster(null)
+    setIsMonsterEditDialogOpen(false)
+  }
+
+  function handleMonsterDeleted(monsterId: string) {
+    setMonsters(monsters.filter(m => m.id !== monsterId))
+    setEditingMonster(null)
+    setIsMonsterEditDialogOpen(false)
+  }
+
+  function openMonsterEditDialog(monster: Monster) {
+    setEditingMonster(monster)
+    setIsMonsterEditDialogOpen(true)
   }
 
   function resetMonsterForm() {
@@ -1255,9 +1273,9 @@ export default function CampaignPage() {
           type: 'character',
           id: char.id,
           name: char.name,
-          initiative: rollInitiative(char.initiative_bonus),
-          current_hp: char.current_hp,
-          max_hp: char.max_hp,
+          initiative: rollInitiative(char.initiative_bonus ?? undefined),
+          current_hp: char.current_hp ?? undefined,
+          max_hp: char.max_hp ?? undefined,
           conditions: char.conditions || [],
         })
       }
@@ -1267,7 +1285,7 @@ export default function CampaignPage() {
     for (const monsterSelection of selectedMonstersForCombat) {
       const monster = monsters.find(m => m.id === monsterSelection.id)
       if (monster) {
-        const dexMod = abilityModifier(monster.dex)
+        const dexMod = abilityModifier(monster.dex ?? 10)
         for (let i = 0; i < monsterSelection.count; i++) {
           initiativeList.push({
             type: 'monster',
@@ -1405,7 +1423,7 @@ export default function CampaignPage() {
         // Extract monster ID from instance ID (e.g., "uuid_0" -> "uuid")
         const monsterId = id.split('_')[0]
         const monster = monsters.find(m => m.id === monsterId)
-        modifier = monster ? abilityModifier(monster.dex) : 0
+        modifier = monster ? abilityModifier(monster.dex ?? 10) : 0
       }
 
       const newInit = rollInitiative(modifier)
@@ -1518,8 +1536,8 @@ export default function CampaignPage() {
     if (!character) return
 
     // Calculate new HP
-    const newMaxHP = character.max_hp + data.totalHPGain
-    const newCurrentHP = character.current_hp + data.totalHPGain
+    const newMaxHP = (character.max_hp ?? 10) + data.totalHPGain
+    const newCurrentHP = (character.current_hp ?? 10) + data.totalHPGain
 
     // Build the updates object
     const updates: Record<string, unknown> = {
@@ -1596,7 +1614,7 @@ export default function CampaignPage() {
     const character = characters.find(c => c.id === characterId)
     if (!character) return
 
-    const newHP = Math.max(0, Math.min(character.max_hp, character.current_hp + change))
+    const newHP = Math.max(0, Math.min(character.max_hp ?? 10, (character.current_hp ?? 10) + change))
 
     const { error } = await supabase
       .from('dnd_characters')
@@ -1651,8 +1669,15 @@ export default function CampaignPage() {
   function initializeResources(character: CharacterState) {
     const resources = getClassResources(
       character.class,
-      character.level,
-      { str: character.str, dex: character.dex, con: character.con, int: character.int, wis: character.wis, cha: character.cha }
+      character.level ?? 1,
+      {
+        str: character.str ?? 10,
+        dex: character.dex ?? 10,
+        con: character.con ?? 10,
+        int: character.int ?? 10,
+        wis: character.wis ?? 10,
+        cha: character.cha ?? 10
+      }
     )
     updateCharacterResources(character.id, resources)
   }
@@ -2160,8 +2185,10 @@ export default function CampaignPage() {
             ) : (
               <div className="grid gap-4 md:gap-6 md:grid-cols-2 lg:grid-cols-3 card-stagger">
                 {characters.map((character) => {
-                  const hpStatus = getHPStatus(character.current_hp, character.max_hp)
-                  const hpPercentage = (character.current_hp / character.max_hp) * 100
+                  const currentHp = character.current_hp ?? 10
+                  const maxHp = character.max_hp ?? 10
+                  const hpStatus = getHPStatus(currentHp, maxHp)
+                  const hpPercentage = (currentHp / maxHp) * 100
                   const classInfo = character.class ? DND_CLASSES[character.class as keyof typeof DND_CLASSES] : null
 
                   return (
@@ -2218,7 +2245,7 @@ export default function CampaignPage() {
                           />
                           <span className="hp-bar-text">
                             {character.current_hp}/{character.max_hp}
-                            {character.temp_hp > 0 && ` (+${character.temp_hp})`}
+                            {(character.temp_hp ?? 0) > 0 && ` (+${character.temp_hp})`}
                           </span>
                         </div>
                         <div className="flex gap-2 mt-3">
@@ -2256,7 +2283,7 @@ export default function CampaignPage() {
                           <div className="stat-label">CA</div>
                         </div>
                         <div className="stat-box">
-                          <div className="stat-value">{formatModifier(character.initiative_bonus)}</div>
+                          <div className="stat-value">{formatModifier(character.initiative_bonus ?? 0)}</div>
                           <div className="stat-label">Init</div>
                         </div>
                         <div className="stat-box">
@@ -2288,15 +2315,15 @@ export default function CampaignPage() {
                       </button>
 
                       {/* Level Up Button */}
-                      {character.level < 20 && (
+                      {(character.level ?? 1) < 20 && (
                         <div className="mt-4 pt-4 border-t border-[var(--border-decorative)]">
                           <button
                             onClick={() => openLevelUpDialog(character)}
                             className="w-full py-2 px-4 bg-[var(--teal)]/10 hover:bg-[var(--teal)]/20 text-[var(--teal)] rounded-lg border border-[var(--teal)]/30 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
                           >
                             <span className="text-lg">⬆</span>
-                            Level Up → Lv.{character.level + 1}
-                            {hasASIAtLevel(character.class, character.level + 1) && (
+                            Level Up → Lv.{(character.level ?? 1) + 1}
+                            {hasASIAtLevel(character.class, (character.level ?? 1) + 1) && (
                               <span className="text-xs bg-[var(--teal)] text-white px-2 py-0.5 rounded">+ASI</span>
                             )}
                           </button>
@@ -2304,9 +2331,9 @@ export default function CampaignPage() {
                       )}
 
                       {/* Conditions */}
-                      {character.conditions.length > 0 && (
+                      {(character.conditions?.length ?? 0) > 0 && (
                         <div className="mt-4 flex flex-wrap gap-2">
-                          {character.conditions.map((condition: string) => {
+                          {character.conditions?.map((condition: string) => {
                             const condInfo = CONDITIONS[condition as keyof typeof CONDITIONS] as { name: string; nameIt: string; icon: string; iconSvg: string; description: string } | undefined
                             return (
                               <span key={condition} className="condition-badge">
@@ -2339,7 +2366,7 @@ export default function CampaignPage() {
                               {[0, 1, 2].map((i) => (
                                 <div
                                   key={`success-${i}`}
-                                  className={`death-save ${i < character.death_save_successes ? 'success' : ''}`}
+                                  className={`death-save ${i < (character.death_save_successes ?? 0) ? 'success' : ''}`}
                                 />
                               ))}
                             </div>
@@ -2348,7 +2375,7 @@ export default function CampaignPage() {
                               {[0, 1, 2].map((i) => (
                                 <div
                                   key={`failure-${i}`}
-                                  className={`death-save ${i < character.death_save_failures ? 'failure' : ''}`}
+                                  className={`death-save ${i < (character.death_save_failures ?? 0) ? 'failure' : ''}`}
                                 />
                               ))}
                             </div>
@@ -2773,7 +2800,7 @@ export default function CampaignPage() {
                                     )}
                                   </div>
                                   <Badge variant="outline" className="text-xs">
-                                    Init {formatModifier(char.initiative_bonus)}
+                                    Init {formatModifier(char.initiative_bonus ?? 0)}
                                   </Badge>
                                 </div>
                                 <div className="text-xs text-[var(--ink-light)] mt-1">
@@ -2837,7 +2864,7 @@ export default function CampaignPage() {
                                     </div>
                                   </div>
                                   <div className="text-xs text-[var(--ink-light)] mt-1">
-                                    HP {monster.max_hp} • AC {monster.armor_class} • DEX {formatModifier(abilityModifier(monster.dex))}
+                                    HP {monster.max_hp} • AC {monster.armor_class} • DEX {formatModifier(abilityModifier(monster.dex ?? 10))}
                                   </div>
                                 </div>
                               )
@@ -3285,7 +3312,12 @@ export default function CampaignPage() {
                             <div>
                               <CardTitle className="text-lg text-[var(--ink)]">{note.title}</CardTitle>
                               <div className="flex items-center gap-2 mt-1">
-                                <Badge variant="outline" className="text-xs" title={getActTitle(note.act) || undefined}>Atto {note.act}{getActTitle(note.act) ? `: ${getActTitle(note.act)}` : ''}</Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {note.acts?.length === 1
+                                    ? `Atto ${note.acts[0]}${getActTitle(note.acts[0]) ? `: ${getActTitle(note.acts[0])}` : ''}`
+                                    : `Atti ${note.acts?.join(', ') || '-'}`
+                                  }
+                                </Badge>
                                 <Badge variant="outline" className="text-xs">{noteType?.label}</Badge>
                                 {note.is_revealed && (
                                   <Badge className="text-xs bg-[var(--teal)] text-white">Rivelato</Badge>
@@ -3352,13 +3384,14 @@ export default function CampaignPage() {
                     + Nuova Sessione
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="parchment-card max-w-lg">
+                <DialogContent className="parchment-card max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
                   <DialogHeader>
                     <DialogTitle>{editingSession ? 'Modifica Sessione' : 'Nuova Sessione'}</DialogTitle>
                     <DialogDescription>
                       {editingSession ? 'Modifica i dettagli della sessione' : 'Registra una nuova sessione di gioco'}
                     </DialogDescription>
                   </DialogHeader>
+                  <div className="flex-1 overflow-y-auto">
                   <div className="grid gap-4 py-4">
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
@@ -3422,8 +3455,10 @@ export default function CampaignPage() {
                         value={newSession.summary}
                         onChange={(e) => setNewSession({ ...newSession, summary: e.target.value })}
                         rows={6}
+                        className="max-h-[200px] overflow-y-auto resize-none"
                       />
                     </div>
+                  </div>
                   </div>
                   <DialogFooter>
                     <Button variant="outline" onClick={resetSessionForm} className="min-h-[44px]">
@@ -3474,7 +3509,7 @@ export default function CampaignPage() {
                             </Badge>
                           ) : null
                         })()}
-                        {session.xp_awarded > 0 && (
+                        {(session.xp_awarded ?? 0) > 0 && (
                           <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800">
                             {session.xp_awarded} XP
                           </Badge>
@@ -3751,7 +3786,12 @@ export default function CampaignPage() {
                             <div>
                               <CardTitle className="text-lg text-[var(--ink)]">{encounter.name}</CardTitle>
                               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                                <Badge variant="outline" className="text-xs" title={getActTitle(encounter.act) || undefined}>Atto {encounter.act}{getActTitle(encounter.act) ? `: ${getActTitle(encounter.act)}` : ''}</Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {encounter.acts?.length === 1
+                                    ? `Atto ${encounter.acts[0]}${getActTitle(encounter.acts[0]) ? `: ${getActTitle(encounter.acts[0])}` : ''}`
+                                    : `Atti ${encounter.acts?.join(', ') || '-'}`
+                                  }
+                                </Badge>
                                 <Badge className={`text-xs ${status?.color}`}>{status?.label}</Badge>
                                 <Badge variant="outline" className={`text-xs ${difficulty?.color}`}>{difficulty?.label}</Badge>
                               </div>
@@ -4129,6 +4169,14 @@ export default function CampaignPage() {
                             className="flex-1 min-h-[40px]"
                           >
                             Dettagli
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openMonsterEditDialog(monster)}
+                            className="min-h-[40px] text-[var(--teal)] hover:bg-[var(--teal)]/10"
+                          >
+                            <Pencil className="w-4 h-4" />
                           </Button>
                           <Button
                             variant="outline"
@@ -4858,8 +4906,8 @@ export default function CampaignPage() {
             const classInfo = char.class
               ? DND_CLASSES[char.class as keyof typeof DND_CLASSES]
               : null
-            const hpPercentage = (char.current_hp / char.max_hp) * 100
-            const profBonus = getProficiencyBonus(char.level)
+            const hpPercentage = ((char.current_hp ?? 10) / (char.max_hp ?? 10)) * 100
+            const profBonus = getProficiencyBonus(char.level ?? 1)
 
             return (
               <>
@@ -4938,7 +4986,7 @@ export default function CampaignPage() {
                               type="number"
                               min={1}
                               max={20}
-                              value={editedCharacter.level}
+                              value={editedCharacter.level ?? 1}
                               onChange={(e) => setEditedCharacter({ ...editedCharacter, level: parseInt(e.target.value) || 1 })}
                               className="h-9"
                               placeholder="Lv"
@@ -4977,7 +5025,7 @@ export default function CampaignPage() {
                       <>
                         <Input
                           type="number"
-                          value={editedCharacter.armor_class}
+                          value={editedCharacter.armor_class ?? 10}
                           onChange={(e) => setEditedCharacter({ ...editedCharacter, armor_class: parseInt(e.target.value) || 10 })}
                           className="text-center h-10 text-lg font-bold"
                         />
@@ -4995,7 +5043,7 @@ export default function CampaignPage() {
                       <>
                         <Input
                           type="number"
-                          value={editedCharacter.max_hp}
+                          value={editedCharacter.max_hp ?? 1}
                           onChange={(e) => setEditedCharacter({ ...editedCharacter, max_hp: parseInt(e.target.value) || 1 })}
                           className="text-center h-10 text-lg font-bold"
                         />
@@ -5019,7 +5067,7 @@ export default function CampaignPage() {
                       <>
                         <Input
                           type="number"
-                          value={editedCharacter.initiative_bonus}
+                          value={editedCharacter.initiative_bonus ?? 0}
                           onChange={(e) => setEditedCharacter({ ...editedCharacter, initiative_bonus: parseInt(e.target.value) || 0 })}
                           className="text-center h-10 text-lg font-bold"
                         />
@@ -5028,7 +5076,7 @@ export default function CampaignPage() {
                     ) : (
                       <>
                         <div className="text-2xl font-bold text-[var(--ink)]">
-                          {formatModifier(char.initiative_bonus)}
+                          {formatModifier(char.initiative_bonus ?? 0)}
                         </div>
                         <div className="text-xs text-[var(--ink-light)] uppercase">Init</div>
                       </>
@@ -5078,15 +5126,15 @@ export default function CampaignPage() {
                             type="number"
                             min={1}
                             max={30}
-                            value={editedCharacter[stat.key]}
+                            value={editedCharacter[stat.key] ?? 10}
                             onChange={(e) => setEditedCharacter({ ...editedCharacter, [stat.key]: parseInt(e.target.value) || 10 })}
                             className="text-center h-8 text-lg font-bold p-1"
                           />
                         ) : (
                           <>
-                            <div className="text-xl font-bold text-[var(--ink)]">{stat.value}</div>
+                            <div className="text-xl font-bold text-[var(--ink)]">{stat.value ?? 10}</div>
                             <div className="text-sm font-semibold text-[var(--teal)]">
-                              {formatModifier(abilityModifier(stat.value))}
+                              {formatModifier(abilityModifier(stat.value ?? 10))}
                             </div>
                           </>
                         )}
@@ -5144,14 +5192,14 @@ export default function CampaignPage() {
                 )}
 
                 {/* Conditions */}
-                {char.conditions.length > 0 && (
+                {(char.conditions?.length ?? 0) > 0 && (
                   <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
                     <h4 className="text-sm font-semibold text-amber-800 mb-2 flex items-center gap-2">
                       <GameIcon name="alert" category="ui" size={18} />
                       Condizioni Attive
                     </h4>
                     <div className="flex flex-wrap gap-2">
-                      {char.conditions.map((condition: string) => {
+                      {char.conditions?.map((condition: string) => {
                         const condInfo = CONDITIONS[condition as keyof typeof CONDITIONS] as { name: string; nameIt: string; icon: string; iconSvg: string; description: string } | undefined
                         return (
                           <span key={condition} className="condition-badge">
@@ -5185,7 +5233,7 @@ export default function CampaignPage() {
                           <div
                             key={`success-${i}`}
                             className={`w-4 h-4 rounded-full border-2 ${
-                              i < char.death_save_successes
+                              i < (char.death_save_successes ?? 0)
                                 ? 'bg-[var(--teal)] border-[var(--teal)]'
                                 : 'border-gray-300'
                             }`}
@@ -5198,7 +5246,7 @@ export default function CampaignPage() {
                           <div
                             key={`failure-${i}`}
                             className={`w-4 h-4 rounded-full border-2 ${
-                              i < char.death_save_failures
+                              i < (char.death_save_failures ?? 0)
                                 ? 'bg-[var(--coral)] border-[var(--coral)]'
                                 : 'border-gray-300'
                             }`}
@@ -5625,7 +5673,7 @@ export default function CampaignPage() {
                       <Button
                         variant="outline"
                         onClick={() => setLevelUpWizardOpen(true)}
-                        disabled={char.level >= 20}
+                        disabled={(char.level ?? 1) >= 20}
                         className="btn-secondary min-h-[44px]"
                       >
                         <TrendingUp className="w-4 h-4 mr-2" />
@@ -5674,6 +5722,15 @@ export default function CampaignPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Monster Edit Dialog */}
+      <MonsterEditDialog
+        monster={editingMonster}
+        open={isMonsterEditDialogOpen}
+        onOpenChange={setIsMonsterEditDialogOpen}
+        onSave={handleMonsterSaved}
+        onDelete={handleMonsterDeleted}
+      />
     </main>
   )
 }

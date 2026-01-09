@@ -78,6 +78,11 @@ export interface CachedSpell {
   document_title: string | null
   raw_data: Open5eSpell
   cached_at: string
+  // D&D 2024 combat mechanics fields
+  saving_throw?: string | null
+  attack_roll?: boolean
+  damage?: string | null
+  area_of_effect?: string | null
 }
 
 export interface CachedRace {

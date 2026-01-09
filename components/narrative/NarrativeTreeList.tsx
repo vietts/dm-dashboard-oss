@@ -5,7 +5,7 @@ import { useNarrativeTree } from './hooks/useNarrativeTree'
 import { useNarrativeActions } from './hooks/useNarrativeActions'
 import { NarrativeNode } from './NarrativeNode'
 import { NarrativeNodeDialog, QuickBranchDialog } from './NarrativeNodeDialog'
-import { NarrativeNode as NarrativeNodeType, NarrativeEdge, StoryNote, Encounter, Monster } from '@/types/database'
+import { NarrativeNode as NarrativeNodeType, NarrativeEdge, NarrativeCheck, NarrativeCheckInsert, StoryNote, Encounter, Monster } from '@/types/database'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { GameIcon } from '@/components/icons/GameIcon'
@@ -31,6 +31,7 @@ export function NarrativeTreeList({ actId, campaignId, actNumber }: NarrativeTre
     nodes,
     edges,
     links,
+    checks,
     rootNode,
     currentNode,
     visitedPath,
@@ -64,14 +65,14 @@ export function NarrativeTreeList({ actId, campaignId, actNumber }: NarrativeTre
       .from('dnd_story_notes')
       .select('*')
       .eq('campaign_id', campaignId)
-      .eq('act', actNumber)
+      .contains('acts', [actNumber])
 
     // Fetch encounters for this act
     const { data: encountersData } = await supabase
       .from('dnd_encounters')
       .select('*')
       .eq('campaign_id', campaignId)
-      .eq('act', actNumber)
+      .contains('acts', [actNumber])
 
     // Fetch monsters for this campaign
     const { data: monstersData } = await supabase
@@ -112,6 +113,11 @@ export function NarrativeTreeList({ actId, campaignId, actNumber }: NarrativeTre
       monsters: linkedMonsters.filter(m => nodeLinks.some(l => l.link_type === 'monster' && l.link_id === m.id))
     }
   }, [links, linkedNotes, linkedEncounters, linkedMonsters])
+
+  // Get checks for a specific node
+  const getChecksForNode = useCallback((nodeId: string): NarrativeCheck[] => {
+    return checks.filter(c => c.node_id === nodeId)
+  }, [checks])
 
   // Render a node and its children recursively
   const renderNode = useCallback((nodeId: string, depth: number = 0): React.ReactNode => {
@@ -217,6 +223,20 @@ export function NarrativeTreeList({ actId, campaignId, actNumber }: NarrativeTre
   async function handleReset() {
     await actions.resetSession()
     setConfirmReset(false)
+  }
+
+  // Check handlers
+  async function handleCheckCreate(check: Omit<NarrativeCheckInsert, 'node_id'>) {
+    if (!editingNode) return
+    await actions.createCheck(editingNode.id, check)
+  }
+
+  async function handleCheckDelete(checkId: string) {
+    await actions.deleteCheck(checkId)
+  }
+
+  async function handleCheckUpdate(checkId: string, updates: Partial<NarrativeCheckInsert>) {
+    await actions.updateCheck(checkId, updates)
   }
 
   // Loading state
@@ -345,8 +365,12 @@ export function NarrativeTreeList({ actId, campaignId, actNumber }: NarrativeTre
         linkedNoteIds={editingNode ? getLinksForNode(editingNode.id).noteIds : []}
         linkedEncounterIds={editingNode ? getLinksForNode(editingNode.id).encounterIds : []}
         linkedMonsterIds={editingNode ? getLinksForNode(editingNode.id).monsterIds : []}
+        checks={editingNode ? getChecksForNode(editingNode.id) : []}
         onSave={handleSaveNode}
         onLinkToggle={handleLinkToggle}
+        onCheckCreate={handleCheckCreate}
+        onCheckDelete={handleCheckDelete}
+        onCheckUpdate={handleCheckUpdate}
       />
 
       {/* Quick branch dialog */}

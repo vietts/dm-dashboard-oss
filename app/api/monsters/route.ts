@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest) {
   try {
     const data = await request.json()
 
-    const { id, name, armor_class, max_hp, speed, str, dex, con, int, wis, cha, cr, monster_type, size, abilities } = data
+    const { id, name, armor_class, max_hp, speed, str, dex, con, int, wis, cha, cr, monster_type, size, abilities, legendary_actions, image_url } = data
 
     if (!id) {
       return NextResponse.json({ error: 'ID mostro richiesto' }, { status: 400 })
@@ -76,6 +76,8 @@ export async function PUT(request: NextRequest) {
         monster_type: monster_type || 'humanoid',
         size: size || 'Medium',
         abilities: abilities || null,
+        legendary_actions: legendary_actions || null,
+        image_url: image_url ?? null,
       })
       .eq('id', id)
       .select()
@@ -89,6 +91,32 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ success: true, data: monster })
   } catch (err) {
     console.error('Monster PUT error:', err)
+    return NextResponse.json({ error: 'Errore server' }, { status: 500 })
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get('id')
+
+    if (!id) {
+      return NextResponse.json({ error: 'ID mostro richiesto' }, { status: 400 })
+    }
+
+    const { error } = await supabaseAdminUntyped
+      .from('dnd_monsters')
+      .delete()
+      .eq('id', id)
+
+    if (error) {
+      console.error('Delete monster error:', error)
+      return NextResponse.json({ error: 'Errore eliminazione mostro' }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (err) {
+    console.error('Monster DELETE error:', err)
     return NextResponse.json({ error: 'Errore server' }, { status: 500 })
   }
 }

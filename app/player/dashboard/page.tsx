@@ -18,8 +18,7 @@ import type {
 } from '@/types/database'
 
 // Components
-import CharacterSheet from '@/components/player/CharacterSheet'
-import ResourceTracker from '@/components/player/ResourceTracker'
+import CharacterPanel from '@/components/player/CharacterPanel'
 import SessionsList from '@/components/player/SessionsList'
 import CombatLog from '@/components/player/CombatLog'
 import RevealedNotes from '@/components/player/RevealedNotes'
@@ -28,16 +27,21 @@ import SpellManager from '@/components/player/SpellManager'
 import PlayerNotes from '@/components/player/PlayerNotes'
 import QuickGuide from '@/components/player/QuickGuide'
 import Glossary from '@/components/player/Glossary'
+import SpellSearchWidget from '@/components/player/SpellSearchWidget'
 import AvatarUpload from '@/components/player/AvatarUpload'
 import CharacterBackground from '@/components/player/CharacterBackground'
 import BottomNavigation, { type NavSection } from '@/components/player/BottomNavigation'
+import DMCharacterSelector from '@/components/player/DMCharacterSelector'
+import SkillsPanel from '@/components/player/SkillsPanel'
+import ActionsPanel from '@/components/player/ActionsPanel'
 import { GameIcon } from '@/components/icons/GameIcon'
 
 interface PlayerAuth {
-  playerId: string
-  characterId: string
-  campaignId: string
+  playerId?: string
+  characterId?: string
+  campaignId?: string
   playerName: string
+  isDM?: boolean
 }
 
 function PlayerDashboardContent() {
@@ -59,8 +63,8 @@ function PlayerDashboardContent() {
   const [backgroundAnswers, setBackgroundAnswers] = useState<BackgroundAnswers>({})
   const [characterSecret, setCharacterSecret] = useState<string | null>(null)
 
-  // Active section for mobile navigation
-  const [activeSection, setActiveSection] = useState<NavSection>('character')
+  // Active section for mobile navigation - Default to 'actions' for quick reference
+  const [activeSection, setActiveSection] = useState<NavSection>('actions')
 
   // Verify auth and load initial data
   useEffect(() => {
@@ -192,7 +196,7 @@ function PlayerDashboardContent() {
       const { data: pNotesData } = await supabase
         .from('dnd_player_notes')
         .select('*')
-        .eq('player_id', playerAuth.playerId)
+        .eq('player_id', playerAuth.playerId!)
         .order('updated_at', { ascending: false })
       if (pNotesData) setPlayerNotes(pNotesData)
 
@@ -200,7 +204,7 @@ function PlayerDashboardContent() {
       const { data: playerData } = await supabase
         .from('dnd_players')
         .select('background_answers, character_secret')
-        .eq('id', playerAuth.playerId)
+        .eq('id', playerAuth.playerId!)
         .single()
       if (playerData) {
         if (playerData.background_answers) {
@@ -289,6 +293,11 @@ function PlayerDashboardContent() {
     setCharacterSecret(secret)
   }
 
+  // Show DM character selector if user is DM (not in preview mode)
+  if (playerAuth?.isDM && !isDMPreview) {
+    return <DMCharacterSelector />
+  }
+
   if (!playerAuth || loading) {
     return (
       <div className="min-h-screen bg-[var(--cream)] flex items-center justify-center">
@@ -368,40 +377,41 @@ function PlayerDashboardContent() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto p-4">
-        {/* Avatar Section (desktop only - hidden in DM preview) */}
-        {!isDMPreview && (
-          <div className="hidden md:block mb-6 parchment-card p-4">
-            <AvatarUpload
-              characterId={character.id}
-              currentUrl={character.avatar_url}
-              characterName={character.name}
-              onUpdate={loadData}
-            />
-          </div>
-        )}
-
         {/* Desktop: Fluid modular layout */}
         <div className="hidden md:block space-y-4">
-          {/* Row 1: Character + Resources (side by side on large screens) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* Hero Section - CharacterSheet prominente */}
-            <div className="relative">
-              <div className="absolute -inset-1 bg-gradient-to-br from-[var(--teal)]/20 to-transparent rounded-xl blur-sm" />
-              <div className="relative">
-                <CharacterSheet character={character} />
-              </div>
-            </div>
-            <ResourceTracker character={character} />
-          </div>
+          {/* Row 1: Character Panel (merged identity + resources) */}
+          <CharacterPanel character={character} onUpdate={loadData} readOnly={isDMPreview} />
 
-          {/* Row 2: Spells (full width) */}
-          <SpellManager
-            characterId={character.id}
-            spells={spells}
+          {/* Row 2: Skills */}
+          <SkillsPanel
+            character={character}
             onUpdate={loadData}
+            readOnly={isDMPreview}
           />
 
-          {/* Row 3: Inventory + Player Notes (side by side) */}
+          {/* Row 3: Spells (full width) */}
+          <SpellManager
+            characterId={character.id}
+            characterClass={character.class || ''}
+            characterLevel={character.level || 1}
+            stats={{
+              int: character.int || 10,
+              wis: character.wis || 10,
+              cha: character.cha || 10
+            }}
+            spells={spells}
+            onUpdate={loadData}
+            readOnly={isDMPreview}
+          />
+
+          {/* Row 4: Actions Panel (full width) */}
+          <ActionsPanel
+            character={character}
+            onUpdate={loadData}
+            readOnly={isDMPreview}
+          />
+
+          {/* Row 5: Inventory + Player Notes (side by side) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <InventoryManager
               characterId={character.id}
@@ -409,13 +419,13 @@ function PlayerDashboardContent() {
               onUpdate={loadData}
             />
             <PlayerNotes
-              playerId={playerAuth.playerId}
+              playerId={playerAuth.playerId!}
               notes={playerNotes}
               onUpdate={loadData}
             />
           </div>
 
-          {/* Row 4: Sessions | Combat + Revealed Notes (side by side) */}
+          {/* Row 6: Sessions | Combat + Revealed Notes (side by side) */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <SessionsList sessions={sessions} />
             <div className="space-y-4">
@@ -424,9 +434,9 @@ function PlayerDashboardContent() {
             </div>
           </div>
 
-          {/* Row 5: Story (collapsible, at bottom) */}
+          {/* Row 7: Character Background (collapsible) */}
           <CharacterBackground
-            playerId={playerAuth.playerId}
+            playerId={playerAuth.playerId!}
             initialAnswers={backgroundAnswers}
             secret={characterSecret}
             onSecretSave={handleSecretSave}
@@ -434,16 +444,35 @@ function PlayerDashboardContent() {
             defaultCollapsed
           />
 
-          {/* Row 6: Guide + Glossary (collapsible, at bottom) */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <QuickGuide defaultCollapsed />
+          {/* Row 8: Avatar + Guide + Glossary (collapsible) */}
+          <div
+            className={`grid grid-cols-1 gap-4 ${
+              isDMPreview ? 'lg:grid-cols-2' : 'lg:grid-cols-3'
+            }`}
+          >
+            {/* Avatar Upload - only if not DM preview */}
+            {!isDMPreview && (
+              <div>
+                <AvatarUpload
+                  characterId={character.id}
+                  currentUrl={character.avatar_url}
+                  characterName={character.name}
+                  onUpdate={loadData}
+                />
+              </div>
+            )}
+
+            <QuickGuide defaultCollapsed characterClass={character?.class ?? undefined} />
             <Glossary defaultCollapsed />
           </div>
+
+          {/* Row 9: Spell Search (full width) */}
+          <SpellSearchWidget defaultCollapsed />
         </div>
 
         {/* Mobile: Section-based view with Bottom Navigation */}
         <div className="md:hidden space-y-4">
-          {/* Section: Personaggio (character + resources + background) */}
+          {/* Section: Personaggio (character panel + skills + background) */}
           {activeSection === 'character' && (
             <>
               {/* Avatar upload on mobile - hidden in DM preview */}
@@ -457,33 +486,59 @@ function PlayerDashboardContent() {
                   />
                 </div>
               )}
-              <CharacterSheet character={character} />
-              <ResourceTracker character={character} />
+              <CharacterPanel character={character} onUpdate={loadData} readOnly={isDMPreview} />
+
+              {/* Skills Panel */}
+              <SkillsPanel
+                character={character}
+                onUpdate={loadData}
+                readOnly={isDMPreview}
+              />
+
               <CharacterBackground
-                playerId={playerAuth.playerId}
+                playerId={playerAuth.playerId!}
                 initialAnswers={backgroundAnswers}
                 secret={characterSecret}
                 onSecretSave={handleSecretSave}
                 showSecret={isDMPreview}
+                defaultCollapsed
               />
             </>
           )}
 
-          {/* Section: Azioni (inventory + spells + player notes) */}
+          {/* Section: Azioni (spells + actions + inventory + notes) */}
           {activeSection === 'actions' && (
             <>
+              {/* Spells first for casters */}
+              <SpellManager
+                characterId={character.id}
+                characterClass={character.class || ''}
+                characterLevel={character.level || 1}
+                stats={{
+                  int: character.int || 10,
+                  wis: character.wis || 10,
+                  cha: character.cha || 10
+                }}
+                spells={spells}
+                onUpdate={loadData}
+                readOnly={isDMPreview}
+              />
+
+              {/* Class Actions */}
+              <ActionsPanel
+                character={character}
+                onUpdate={loadData}
+                readOnly={isDMPreview}
+              />
+
               <InventoryManager
                 characterId={character.id}
                 items={inventory}
                 onUpdate={loadData}
               />
-              <SpellManager
-                characterId={character.id}
-                spells={spells}
-                onUpdate={loadData}
-              />
+
               <PlayerNotes
-                playerId={playerAuth.playerId}
+                playerId={playerAuth.playerId!}
                 notes={playerNotes}
                 onUpdate={loadData}
               />
@@ -499,11 +554,12 @@ function PlayerDashboardContent() {
             </>
           )}
 
-          {/* Section: Info (guide + glossary - collapsible) */}
+          {/* Section: Info (guide + glossary + spell search) */}
           {activeSection === 'info' && (
             <>
-              <QuickGuide />
+              <QuickGuide characterClass={character?.class ?? undefined} />
               <Glossary />
+              <SpellSearchWidget />
             </>
           )}
         </div>

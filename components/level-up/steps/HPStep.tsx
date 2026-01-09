@@ -33,7 +33,7 @@ export function HPStep({ character, state, updateState, hitDie, conModifier }: H
     return (state.hpRollResult || 0) + conModifier
   }
 
-  const newMaxHP = character.max_hp + calculateTotal()
+  const newMaxHP = (character.max_hp ?? 10) + calculateTotal()
 
   return (
     <div className="space-y-6">

@@ -127,6 +127,7 @@ export default function RevealedNotes({ notes }: RevealedNotesProps) {
                                   src={note.image_url}
                                   alt={note.title}
                                   fill
+                                  sizes="32px"
                                   className="object-cover"
                                 />
                               </div>
@@ -169,6 +170,7 @@ export default function RevealedNotes({ notes }: RevealedNotesProps) {
                                   src={note.image_url}
                                   alt={note.title}
                                   fill
+                                  sizes="(max-width: 768px) 100vw, 384px"
                                   className="object-cover hover:scale-105 transition-transform"
                                 />
                               </div>
@@ -188,7 +190,7 @@ export default function RevealedNotes({ notes }: RevealedNotesProps) {
                             )}
 
                             <div className="text-xs text-[var(--ink-faded)]">
-                              Aggiornato: {new Date(note.updated_at).toLocaleDateString('it-IT')}
+                              Aggiornato: {new Date(note.updated_at ?? new Date()).toLocaleDateString('it-IT')}
                             </div>
                           </div>
                         )}

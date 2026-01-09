@@ -41,7 +41,7 @@ const STEP_TITLES = [
 ]
 
 export function LevelUpWizard({ open, character, onComplete, onCancel }: LevelUpWizardProps) {
-  const targetLevel = character.level + 1
+  const targetLevel = (character.level ?? 1) + 1
   const normalizedClass = normalizeClassName(character.class || 'fighter')
   const hitDie = getHitDie(normalizedClass)
   const conModifier = getModifier(character.con || 10)
@@ -53,8 +53,8 @@ export function LevelUpWizard({ open, character, onComplete, onCancel }: LevelUp
 
   // Check if character becomes a spellcaster at this level
   const isSpellcaster = isSpellcasterAtLevel(normalizedClass, targetLevel)
-  const wasSpellcaster = isSpellcasterAtLevel(normalizedClass, character.level)
-  const newSpellsCount = getNewSpellsKnown(normalizedClass, character.level, targetLevel)
+  const wasSpellcaster = isSpellcasterAtLevel(normalizedClass, character.level ?? 1)
+  const newSpellsCount = getNewSpellsKnown(normalizedClass, character.level ?? 1, targetLevel)
 
   // State
   const [state, setState] = useState<LevelUpState>({
@@ -203,12 +203,12 @@ export function LevelUpWizard({ open, character, onComplete, onCancel }: LevelUp
     setIsSubmitting(true)
     try {
       const hpIncrease = calculateHPIncrease()
-      const newMaxHP = character.max_hp + hpIncrease
+      const newMaxHP = (character.max_hp ?? 10) + hpIncrease
 
       const updates: LevelUpUpdates = {
         level: targetLevel,
         max_hp: newMaxHP,
-        current_hp: state.fullHeal ? newMaxHP : character.current_hp + hpIncrease,
+        current_hp: state.fullHeal ? newMaxHP : (character.current_hp ?? 10) + hpIncrease,
         subclass: state.selectedSubclass,
         fighting_style: state.selectedFightingStyle,
         eldritch_invocations: state.selectedInvocations.length > 0 ? state.selectedInvocations : undefined,
@@ -231,7 +231,7 @@ export function LevelUpWizard({ open, character, onComplete, onCancel }: LevelUp
 
   return (
     <Dialog open={open} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl">
             Level Up: {character.name}
@@ -241,6 +241,8 @@ export function LevelUpWizard({ open, character, onComplete, onCancel }: LevelUp
           </DialogDescription>
         </DialogHeader>
 
+        {/* Scrollable content area */}
+        <div className="flex-1 overflow-y-auto py-4">
         {/* Step Indicator */}
         <div className="flex items-center justify-center gap-2 py-4">
           {Array.from({ length: totalSteps }, (_, i) => i + 1).map((step) => {
@@ -320,8 +322,9 @@ export function LevelUpWizard({ open, character, onComplete, onCancel }: LevelUp
             />
           )}
         </div>
+        </div>
 
-        {/* Navigation Buttons */}
+        {/* Navigation Buttons - fixed at bottom */}
         <div className="flex justify-between pt-4 border-t">
           <Button
             variant="outline"
